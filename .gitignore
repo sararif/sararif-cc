@@ -1,0 +1,24 @@
+# คีย์และความลับ — ห้ามขึ้น repo เด็ดขาด
+.env
+.env.*
+*.key
+*.pem
+*token*.json
+
+# ไฟล์ชั่วคราวของเครื่องมือ
+.sararif-cc/
+data/
+*.words.json
+*.phrases.txt
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# โมเดล/ไบนารีขนาดใหญ่ (ผู้ใช้ติดตั้งเอง)
+whispercpp/
+models/
+*.bin
