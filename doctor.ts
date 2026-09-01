@@ -209,7 +209,9 @@ if (missingReq.length || noStt) {
     console.log("    ทาง A (ง่าย · ~฿1 ต่อคลิป 3 นาที · เวลาแม่นระดับคำ)");
     console.log(`      echo 'ELEVENLABS_API_KEY=คีย์ของคุณ' > ${join(HOME, ".sararif-cc.env").replace(HOME, "~")}`);
     console.log("      สมัคร/เอาคีย์ที่ https://elevenlabs.io\n");
-    console.log("    ทาง B (ฟรี · แต่เวลาเพี้ยน ใช้เลือกจุดตัดต่อไม่ได้)");
+    const macVer = Number((Bun.spawnSync(["sw_vers", "-productVersion"]).stdout.toString().split(".")[0]) || 0);
+    console.log(`    ทาง B (ฟรี · เวลาเพี้ยน ใช้เลือกจุดตัดต่อไม่ได้${
+      macVer && macVer < 14 ? ` · ⚠️ เครื่องนี้ macOS ${macVer} ต้อง compile เอง 20–40 นาที — แนะนำข้ามไปทาง A` : ""})`);
     console.log("      brew install whisper-cpp");
     console.log("      mkdir -p ~/.sararif-cc/models");
     console.log(`      curl -L -o ~/.sararif-cc/models/${modelName} \\`);
