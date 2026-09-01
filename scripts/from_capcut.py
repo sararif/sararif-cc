@@ -131,6 +131,11 @@ def main():
     json.dump(data, open(f, "w", encoding="utf-8"), ensure_ascii=False)
     print(f"   → {f}")
 
+    # ขอบกล่องของ CapCut = เส้นตาย ห้ามเอาท้ายกล่องนี้ไปต่อหัวกล่องหน้า
+    # (พึ่ง "ช่องว่างเวลา" อย่างเดียวไม่ได้ เพราะบางโปรเจกต์กล่องต่อกันสนิท ช่องว่าง = 0)
+    b = out / f"{label}.breaks.txt"
+    b.write_text("\n".join(f"{s:.3f}" for s, _, _ in rows[1:]), encoding="utf-8")
+
 
 if __name__ == "__main__":
     main()

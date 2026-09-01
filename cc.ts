@@ -199,9 +199,11 @@ for (const s of engine === "capcut" ? [] : srcs) {
 
 // ── 6. โหมดดูก่อน (ไม่เขียนลง CapCut) ─────────────────────────────────
 // แบ่งวลีด้วย segment.py (group() เดิม + กฎห้ามคำเชื่อม/บุพบทค้างท้ายบรรทัด)
+const breaksFor = (f: string) => join(WORK, `${basename(f).replace(/\.[^.]+$/, "")}.breaks.txt`);
 const segmentOne = async (s: Src) => {
   const r = await sh(
-    ["python3", join(HERE, "segment.py"), wordsFor(s.file), "--maxchars", MAXCHARS, "--offset", String(s.offset)],
+    ["python3", join(HERE, "segment.py"), wordsFor(s.file), "--maxchars", MAXCHARS, "--offset", String(s.offset),
+      ...(existsSync(breaksFor(s.file)) ? ["--breaks", breaksFor(s.file)] : [])],
     { quiet: true },
   );
   if (r.code !== 0) die(`แบ่งวลีล้มเหลว: ${basename(s.file)}\n${r.err}`);

@@ -44,7 +44,7 @@ TRAILING_BAN = {
 }
 
 
-def group_v2(words, maxchars, gap):
+def group_v2(words, maxchars, gap, breaks=()):
     """เหมือน group() เดิม แต่เพิ่มกฎ: ห้ามจบบรรทัดด้วยคำใน TRAILING_BAN
 
     คืน [(start, end, text)]
@@ -78,7 +78,18 @@ def group_v2(words, maxchars, gap):
         """บรรทัดตอนนี้จบด้วยคำที่ห้ามค้างท้ายไหม"""
         return bool(cur) and cur[-1] in TRAILING_BAN
 
+    brk = list(breaks)
     for tk, st, en in words:
+        # ── เส้นตาย: ขอบกล่องซับต้นทาง (เช่นกล่องของ CapCut auto-caption) ──
+        # ตัดแน่นอน ไม่สนกฎอื่นเลย เพราะข้ามขอบกล่อง = เอาคนละประโยคมาต่อกัน
+        # ใช้แทนการเดาจาก "ช่องว่างเวลา" ซึ่งพังเมื่อกล่องต่อกันสนิท (ช่องว่าง = 0)
+        while brk and st >= brk[0] - 1e-6:
+            # ตัดที่ขอบกล่อง ยกเว้นกรณีเดียว: บรรทัดที่ค้างอยู่สั้นเกินไป **และ** เสียงต่อเนื่อง
+            # (CapCut ตัดกล่องกลางประโยคได้ ถ้าตัดตามดื้อๆ จะได้บรรทัดคำเดียวโดดบนจอ)
+            if cur and (curlen() >= MINLEN or (st - last) > gap):
+                flush()
+            brk.pop(0)
+
         # ตัดก่อนคำเชื่อมขึ้นประโยคใหม่ — แต่ไม่ตัดถ้าบรรทัดจะจบด้วยคำต้องห้าม
         if cur and curlen() >= MINLEN and tk in STARTERS and not ends_badly():
             flush()
@@ -108,6 +119,7 @@ def main():
     ap.add_argument("words_json")
     ap.add_argument("--maxchars", type=int, default=16)
     ap.add_argument("--gap", type=float, default=0.4)
+    ap.add_argument("--breaks", help="ไฟล์เวลาขอบกล่องต้นทาง (บรรทัดละ 1 วินาที) — ตัดตรงนี้เสมอ")
     ap.add_argument("--offset", type=float, default=0.0)
     ap.add_argument("--legacy", action="store_true", help="ใช้ group() เดิม ไม่ใช้กฎห้ามค้างท้าย")
     a = ap.parse_args()
@@ -120,7 +132,10 @@ def main():
         from make_subs import group
         lines = group(words, a.maxchars, a.gap)
     else:
-        lines = group_v2(words, a.maxchars, a.gap)
+        breaks = []
+        if a.breaks and pathlib.Path(a.breaks).exists():
+            breaks = [float(x) for x in pathlib.Path(a.breaks).read_text().split() if x.strip()]
+        lines = group_v2(words, a.maxchars, a.gap, breaks)
 
     for st, en, tx in lines:
         print(f"{st + a.offset:.3f}\t{en + a.offset:.3f}\t{tx}")
