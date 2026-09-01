@@ -152,6 +152,9 @@ def main():
                     help="ความหนา stroke ขอบตัวอักษร 0-0.2 (default 0.06 = อ่านง่ายบนพื้นสว่าง). 0 = ปิด")
     ap.add_argument("--stroke-color", default="#000000")
     ap.add_argument("--font", default=None, help="ไฟล์ฟอนต์ .ttf (ไม่ใส่ = หาให้เอง)")
+    ap.add_argument("--drop-track", type=int, action="append", default=[],
+                    help="ลบแทร็กข้อความเดิมตามเลขที่ระบุ (ใช้ตอนอ่านซับจาก CapCut มาทำใหม่ "
+                         "ไม่งั้นซับเดิมจะซ้อนกับของใหม่บนจอ)")
     a = ap.parse_args()
 
     FONT = resolve_font(a.font)
@@ -160,6 +163,18 @@ def main():
     DRAFT = pathlib.Path.home() / f"Movies/CapCut/User Data/Projects/com.lveditor.draft/{a.proj}/draft_info.json"
     draft = json.loads(DRAFT.read_text())
     (DRAFT.parent / "draft_info.json.PRE_CC_BAK").write_text(json.dumps(draft))
+
+    # ลบแทร็กข้อความต้นทางทิ้งก่อน — ทำก่อนสร้าง template เพราะ index จะเลื่อนหลังลบ
+    # (จำเป็นสำหรับ --engine capcut: เราอ่านซับจากแทร็กนั้นมาทำใหม่ ถ้าไม่ลบจะซ้อนกันบนจอ)
+    if a.drop_track:
+        keep, dropped = [], 0
+        for i, tr in enumerate(draft.get("tracks", [])):
+            if i in a.drop_track and tr.get("type") == "text":
+                dropped += len(tr.get("segments", []))
+                continue
+            keep.append(tr)
+        draft["tracks"] = keep
+        print(f"🗑️  ลบซับเดิม {dropped} กล่อง (แทร็ก {', '.join(map(str, a.drop_track))}) — อยู่ในไฟล์สำรองแล้ว")
 
     # segment template = video segment แรก (field ครบ) แปลงเป็น text segment
     vtpl = draft["tracks"][0]["segments"][0]

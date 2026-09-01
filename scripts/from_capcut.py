@@ -136,6 +136,9 @@ def main():
     b = out / f"{label}.breaks.txt"
     b.write_text("\n".join(f"{s:.3f}" for s, _, _ in rows[1:]), encoding="utf-8")
 
+    # จำไว้ว่าอ่านมาจากแทร็กไหน — ตอนเขียนซับใหม่ต้องลบแทร็กนี้ทิ้ง ไม่งั้นซ้อนกันบนจอ
+    (out / f"{label}.srctrack.txt").write_text(str(idx), encoding="utf-8")
+
 
 if __name__ == "__main__":
     main()

@@ -267,6 +267,13 @@ for (const s of srcs) {
 }
 ccArgs.push("--maxchars", MAXCHARS, "--y", Y, "--size", SIZE);
 
+// engine=capcut: ลบแทร็กซับเดิมที่เราอ่านมาทำใหม่ ไม่งั้นซับ 2 ชุดซ้อนกันบนจอ
+// (ของเดิมยังอยู่ในไฟล์สำรอง .PRE_CC_BAK · สั่ง --keep-source ถ้าอยากเก็บไว้เทียบ)
+if (engine === "capcut" && !has("keep-source")) {
+  const st = join(WORK, `${PROJ}.srctrack.txt`);
+  if (existsSync(st)) ccArgs.push("--drop-track", readFileSync(st, "utf8").trim());
+}
+
 console.log("\n✍️  ใส่ซับลง CapCut…\n");
 const inj = await sh(ccArgs);
 if (inj.code !== 0) die("ใส่ซับล้มเหลว — ไฟล์สำรองอยู่ที่ draft_info.json.PRE_CC_BAK");
