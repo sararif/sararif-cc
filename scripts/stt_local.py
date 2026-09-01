@@ -16,11 +16,38 @@ output: <out>/<clip>.words.json (words[{text,start,end,type}] เหมือน
 import os, sys, json, subprocess, argparse, pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-WCLI = ROOT / "whispercpp" / "build" / "bin" / "whisper-cli"
-MODELS = {
-    "turbo": ROOT / "models" / "ggml-large-v3-turbo.bin",
-    "base": ROOT / "models" / "ggml-base.bin",
-}
+HOME = pathlib.Path.home()
+
+
+def find_wcli():
+    """หา whisper-cli หลายที่ — รองรับทั้งลง brew และ build เอง
+    สั่งทับได้ด้วย env: WHISPER_CLI=/path/to/whisper-cli"""
+    if os.environ.get("WHISPER_CLI"):
+        return pathlib.Path(os.environ["WHISPER_CLI"])
+    for p in [ROOT / "whispercpp/build/bin/whisper-cli",
+              pathlib.Path("/opt/homebrew/bin/whisper-cli"),   # brew: Apple Silicon
+              pathlib.Path("/usr/local/bin/whisper-cli"),      # brew: Intel Mac
+              HOME / "whisper.cpp/build/bin/whisper-cli",
+              HOME / "whispercpp/build/bin/whisper-cli"]:
+        if p.exists():
+            return p
+    return ROOT / "whispercpp/build/bin/whisper-cli"          # ไว้ให้ error บอกที่เดิม
+
+
+def find_model(name):
+    """หาไฟล์โมเดล .bin หลายที่ — สั่งทับได้ด้วย env: WHISPER_MODEL=/path/to/model.bin"""
+    if os.environ.get("WHISPER_MODEL"):
+        return pathlib.Path(os.environ["WHISPER_MODEL"])
+    fn = {"turbo": "ggml-large-v3-turbo.bin", "base": "ggml-base.bin"}[name]
+    for d in [ROOT / "models", HOME / ".sararif-cc/models",
+              HOME / "whisper.cpp/models", ROOT / "whispercpp/models"]:
+        if (d / fn).exists():
+            return d / fn
+    return ROOT / "models" / fn                               # ไว้ให้ error บอกที่เดิม
+
+
+WCLI = find_wcli()
+MODELS = {"turbo": find_model("turbo"), "base": find_model("base")}
 
 
 def dur(f):
@@ -119,7 +146,19 @@ def main():
 
     model = MODELS[a.model]
     if not WCLI.exists() or not model.exists():
-        sys.exit(f"❌ ไม่เจอ whisper-cli หรือโมเดล: {WCLI} / {model}")
+        msg = ["❌ ยังใช้ทางฟรี (whisper ในเครื่อง) ไม่ได้ — ขาดของ:"]
+        if not WCLI.exists():
+            msg += [f"   • ไม่เจอ whisper-cli (หาแล้วที่ {WCLI})",
+                    "     ติดตั้ง:  brew install whisper-cpp"]
+        if not model.exists():
+            fn = {"turbo": "ggml-large-v3-turbo.bin", "base": "ggml-base.bin"}[a.model]
+            msg += [f"   • ไม่เจอไฟล์โมเดล {fn}",
+                    f"     โหลด:  mkdir -p ~/.sararif-cc/models && curl -L -o ~/.sararif-cc/models/{fn} \\",
+                    f"              https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{fn}",
+                    "     (turbo ~1.5GB · base ~150MB เร็วกว่าแต่แม่นน้อยกว่า)"]
+        msg += ["", "   หรือชี้เองด้วย env:  WHISPER_CLI=... WHISPER_MODEL=... python3 scripts/stt_local.py ...",
+                "   ทางที่ง่ายกว่า: ใช้ ElevenLabs Scribe (~฿1 ต่อคลิป 3 นาที) — ดู README"]
+        sys.exit("\n".join(msg))
 
     clips, label = [], "clips"
     if len(a.inputs) == 1 and pathlib.Path(a.inputs[0]).expanduser().is_dir():

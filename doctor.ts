@@ -149,18 +149,37 @@ add({
 });
 
 const whisperCandidates = [
-  join(HERE, "../../whispercpp/build/bin/whisper-cli"),  // ที่อยู่จริงในโปรเจกต์นี้
+  process.env.WHISPER_CLI ?? "",
+  join(HERE, "whispercpp/build/bin/whisper-cli"),
+  join(HERE, "../../whispercpp/build/bin/whisper-cli"),
+  "/opt/homebrew/bin/whisper-cli",   // brew: Apple Silicon
+  "/usr/local/bin/whisper-cli",      // brew: Intel Mac
   join(HOME, "whisper.cpp/build/bin/whisper-cli"),
   join(HOME, "whispercpp/build/bin/whisper-cli"),
-  "/opt/homebrew/bin/whisper-cli",
-];
+].filter(Boolean);
 const whisperAt = whisperCandidates.find(existsSync);
+
+const modelName = "ggml-large-v3-turbo.bin";
+const modelCandidates = [
+  process.env.WHISPER_MODEL ?? "",
+  join(HERE, "models", modelName),
+  join(HOME, ".sararif-cc/models", modelName),
+  join(HOME, "whisper.cpp/models", modelName),
+].filter(Boolean);
+const modelAt = modelCandidates.find(existsSync);
+
 add({
   name: "whisper.cpp (ถอดเสียงฟรีในเครื่อง)",
-  ok: !!whisperAt,
-  detail: whisperAt ? whisperAt.replace(HOME, "~") : "ไม่พบ",
-  fix: "ทางฟรีแต่ติดตั้งยาก — ต้อง build เอง + โหลดโมเดล ~1.5GB\n" +
-       "   บนบางเครื่องต้องใส่ธง -ng ปิด GPU ไม่งั้นได้ข้อความมั่ว",
+  ok: !!whisperAt && !!modelAt,
+  detail: !whisperAt ? "ไม่พบตัวโปรแกรม"
+        : !modelAt ? `เจอโปรแกรมแล้ว (${whisperAt.replace(HOME, "~")}) แต่ยังไม่มีไฟล์โมเดล`
+        : `${whisperAt.replace(HOME, "~")} + โมเดลครบ`,
+  fix: (!whisperAt ? "1) ติดตั้งโปรแกรม:  brew install whisper-cpp\n   " : "") +
+       (!modelAt ? `${whisperAt ? "" : "2) "}โหลดโมเดล (~1.5GB):\n` +
+         `      mkdir -p ~/.sararif-cc/models\n` +
+         `      curl -L -o ~/.sararif-cc/models/${modelName} \\\n` +
+         `        https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}\n   ` : "") +
+       "หมายเหตุ: บางเครื่องต้องใส่ธง -ng ปิด GPU ไม่งั้นได้ข้อความมั่ว (สคริปต์ใส่ให้แล้ว)",
   level: "optional",
 });
 
@@ -186,8 +205,15 @@ if (missingReq.length || noStt) {
   console.log("\n🔴 ยังใช้ไม่ได้ — ต้องแก้ก่อน:\n");
   for (const c of missingReq) console.log(`  • ${c.name}\n    → ${c.fix}\n`);
   if (noStt) {
-    console.log("  • ยังไม่มีทางถอดเสียงเลยสักทาง (ต้องมีอย่างน้อย 1)");
-    console.log("    → ทางง่าย: ใส่ ELEVENLABS_API_KEY  ·  ทางฟรี: ติดตั้ง whisper.cpp\n");
+    console.log("  • ยังไม่มีทางถอดเสียงเลยสักทาง (ต้องมีอย่างน้อย 1) — เลือกทางใดทางหนึ่ง:\n");
+    console.log("    ทาง A (ง่าย · ~฿1 ต่อคลิป 3 นาที · เวลาแม่นระดับคำ)");
+    console.log(`      echo 'ELEVENLABS_API_KEY=คีย์ของคุณ' > ${join(HOME, ".sararif-cc.env").replace(HOME, "~")}`);
+    console.log("      สมัคร/เอาคีย์ที่ https://elevenlabs.io\n");
+    console.log("    ทาง B (ฟรี · แต่เวลาเพี้ยน ใช้เลือกจุดตัดต่อไม่ได้)");
+    console.log("      brew install whisper-cpp");
+    console.log("      mkdir -p ~/.sararif-cc/models");
+    console.log(`      curl -L -o ~/.sararif-cc/models/${modelName} \\`);
+    console.log(`        https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}\n`);
   }
   process.exit(1);
 }

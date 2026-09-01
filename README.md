@@ -66,12 +66,48 @@ CapCut ทำซับไทยอัตโนมัติได้ **แต่�
 | **ElevenLabs Scribe** | เสียเงิน ~฿1 ต่อคลิป 3 นาที | แม่นระดับคำ | คลิปยาว · งานจริง |
 | **whisper.cpp ในเครื่อง** | ฟรี | **เพี้ยนมากขึ้นตามความยาวคลิป** | คลิปสั้น ~15 วิ · ลองเล่น |
 
+**ถ้าเลือกทางฟรี — ติดตั้ง 2 ขั้น**
+
+```bash
+brew install whisper-cpp
+
+mkdir -p ~/.sararif-cc/models
+curl -L -o ~/.sararif-cc/models/ggml-large-v3-turbo.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
+```
+
+โมเดลก้อนละ ~1.5GB โหลดครั้งเดียวจบ (อยากได้เล็กเร็วกว่าแต่แม่นน้อยกว่า เปลี่ยนเป็น `ggml-base.bin` ~150MB)
+ถ้าเก็บโมเดลไว้ที่อื่น สั่งทับได้ด้วย `WHISPER_MODEL=/path/to/model.bin`
+
+> ⚠️ **ทางฟรีเวลาเพี้ยน** — เทียบกับเสียงจริงในคลิป 45 วินาที: วินาทีที่ 42 ถูกรายงานเป็น 53
+> **เอาไปเลือกจุดตัดต่อไม่ได้** เหมาะกับ "อยากรู้ว่าพูดอะไร" เท่านั้น คลิปจริงให้ใช้ Scribe
+
 ใส่ key แบบนี้ (ถ้าใช้ Scribe): สร้างไฟล์ `~/.sararif-cc.env` แล้วใส่บรรทัดเดียว
 ```
 ELEVENLABS_API_KEY=ใส่คีย์ของคุณตรงนี้
 ```
 
 > **ใช้ key ของตัวเองนะครับ** ผมไม่ได้แถม key ให้ และไม่ได้เก็บค่าอะไรจากตรงนี้
+
+---
+
+## โหลดไฟล์ยังไง
+
+**ทางง่าย (ไม่ต้องรู้จัก git)** — เข้า https://github.com/sararif/sararif-cc
+กดปุ่มเขียว **Code** → **Download ZIP** → แตกไฟล์ → ลากโฟลเดอร์ไปไว้ที่ไหนก็ได้
+
+จากนั้นเปิด Terminal แล้ว `cd` เข้าไปในโฟลเดอร์นั้น (ลากโฟลเดอร์มาวางใน Terminal ต่อท้าย `cd ` ได้เลย)
+
+```bash
+cd ~/Downloads/sararif-cc-main
+```
+
+**ทางสำหรับคนใช้ git**
+
+```bash
+git clone https://github.com/sararif/sararif-cc.git
+cd sararif-cc
+```
 
 ---
 
