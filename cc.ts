@@ -10,14 +10,21 @@
  * ตัวนี้: ถอดเสียง → แบ่งวลีตามกฎไทย (pythainlp + ENDERS/STARTERS) → ใส่ลง CapCut
  *
  * ใช้:
- *   bun cc.ts <ชื่อโปรเจกต์CapCut> <ไฟล์คลิป...> [ตัวเลือก]
+ *   ── ทางฟรี ไม่ต้องติดตั้งอะไร ไม่ต้องมีคีย์ ไม่ต้องใส่ไฟล์คลิป ──
+ *   กด Auto captions ใน CapCut ก่อน (ฟรี) → ปิด CapCut → แล้วสั่ง:
+ *   bun cc.ts 0831 --engine capcut --dry
+ *   bun cc.ts 0831 --engine capcut --track 2        # ถ้ามีข้อความหลายแทร็ก
  *
+ *   ── ทางที่เวลาแม่นระดับคำ (ต้องมีคีย์ Scribe / whisper) ──
  *   bun cc.ts 0831 ~/Downloads/IMG_8658.MOV
  *   bun cc.ts 0831 a.MOV b.MOV --engine scribe      # หลายคลิป ต่อกันตามลำดับ
  *   bun cc.ts 0831 a.MOV:0 b.MOV:12.5               # กำหนดจุดเริ่มบนไทม์ไลน์เอง (วินาที)
  *
  * ตัวเลือก:
- *   --engine auto|local|scribe   auto = มี key ใช้ scribe ไม่มีใช้ local (ค่าเริ่มต้น)
+ *   --engine auto|capcut|local|scribe
+ *                                capcut = อ่านซับที่ CapCut ถอดไว้แล้ว (ฟรี ไม่ต้องลงอะไร)
+ *                                auto = มี key ใช้ scribe ไม่มีใช้ local (ค่าเริ่มต้น)
+ *   --track N                    เลือกแทร็กข้อความ (ใช้กับ --engine capcut)
  *   --maxchars 16                ความยาวสูงสุดต่อบรรทัด
  *   --y -0.80                    ตำแหน่งแนวตั้ง (-1 = ล่างสุด)
  *   --size 15                    ขนาดตัวอักษร
@@ -69,14 +76,17 @@ const positional = argv.filter((a, i) => {
   return !(i > 0 && argv[i - 1].startsWith("--") && !["dry"].includes(argv[i - 1].slice(2)));
 });
 
-if (positional.length < 2 || has("help")) {
+const ENGINE = flag("engine", "auto")!;
+// engine=capcut ไม่ต้องมีไฟล์คลิป เพราะอ่านซับที่ CapCut ถอดไว้แล้วในตัวโปรเจกต์
+const NEEDS_CLIP = ENGINE !== "capcut";
+
+if (positional.length < (NEEDS_CLIP ? 2 : 1) || has("help")) {
   console.log(readFileSync(new URL(import.meta.url), "utf8").split("*/")[0].replace(/^\/\*\*?|^ \* ?/gm, ""));
-  process.exit(positional.length < 2 ? 1 : 0);
+  process.exit(positional.length < (NEEDS_CLIP ? 2 : 1) ? 1 : 0);
 }
 
 const PROJ = positional[0];
 const SOURCES = positional.slice(1);
-const ENGINE = flag("engine", "auto")!;
 const MAXCHARS = flag("maxchars", "16")!;
 const Y = flag("y", "-0.80")!;
 const SIZE = flag("size", "15")!;
@@ -101,9 +111,11 @@ if (!existsSync(DRAFT)) {
   die(`ไม่พบโปรเจกต์ "${PROJ}"\n   โปรเจกต์ที่มี: ${available.slice(0, 12).join(" · ") || "(ไม่มีเลย)"}`);
 }
 
-for (const s of SOURCES) {
-  const f = s.includes(":") ? s.slice(0, s.lastIndexOf(":")) : s;
-  if (!existsSync(f)) die(`ไม่พบไฟล์คลิป: ${f}`);
+if (NEEDS_CLIP) {
+  for (const s of SOURCES) {
+    const f = s.includes(":") ? s.slice(0, s.lastIndexOf(":")) : s;
+    if (!existsSync(f)) die(`ไม่พบไฟล์คลิป: ${f}`);
+  }
 }
 
 // ── 3. คิดจุดเริ่มบนไทม์ไลน์ของแต่ละคลิป ──────────────────────────────
@@ -116,7 +128,7 @@ const dur = async (f: string) => {
 type Src = { file: string; offset: number };
 const srcs: Src[] = [];
 let cursor = 0;
-for (const s of SOURCES) {
+for (const s of NEEDS_CLIP ? SOURCES : []) {
   const idx = s.lastIndexOf(":");
   const explicit = idx > 1 && /^[\d.]+$/.test(s.slice(idx + 1));
   const file = explicit ? s.slice(0, idx) : s;
@@ -137,10 +149,19 @@ const hasKey =
 
 const engine = ENGINE === "auto" ? (hasKey ? "scribe" : "local") : ENGINE;
 if (engine === "scribe" && !hasKey) die("เลือก --engine scribe แต่ไม่พบ ELEVENLABS_API_KEY");
-console.log(`\n🎙️  ถอดเสียงด้วย: ${engine === "scribe" ? "ElevenLabs Scribe (แม่นระดับคำ · เสียเงิน)" : "whisper ในเครื่อง (ฟรี)"}`);
+const engineLabel: Record<string, string> = {
+  scribe: "ElevenLabs Scribe (แม่นระดับคำ · เสียเงิน ~฿1/คลิป 3 นาที)",
+  local: "whisper ในเครื่อง (ฟรี · ต้องติดตั้งเอง)",
+  capcut: "ซับที่ CapCut ถอดไว้แล้ว (ฟรี · ไม่ต้องติดตั้งอะไร ไม่ต้องมีคีย์)",
+};
+console.log(`\n🎙️  แหล่งข้อความ: ${engineLabel[engine] ?? engine}`);
 if (engine === "local") {
   console.log("   ⚠️ เวลาของ whisper ในเครื่องคลาดเคลื่อนมากขึ้นตามความยาวคลิป");
   console.log("      คลิปสั้น (~15 วิ) พอใช้ · คลิปยาวควรใช้ scribe");
+}
+if (engine === "capcut") {
+  console.log("   ℹ️ ขอบกล่องเวลาแม่นตามที่ CapCut แบ่งมา ส่วนในกล่องเฉลี่ยตามจำนวนตัวอักษร");
+  console.log("      พอสำหรับให้ซับขึ้นตรงจังหวะ · ถ้าต้องเป๊ะระดับคำเพื่อไปตัดต่อ ใช้ scribe");
 }
 
 // ── 5. ถอดเสียง ───────────────────────────────────────────────────────
@@ -149,13 +170,24 @@ if (engine === "local") {
 const WORK = join(DRAFT_DIR, ".sararif-cc", engine);
 mkdirSync(WORK, { recursive: true });
 
-const sttScript = engine === "scribe" ? "stt_clips.py" : "stt_local.py";
+const sttScript = { scribe: "stt_clips.py", local: "stt_local.py", capcut: "from_capcut.py" }[engine] ?? "stt_local.py";
 const sttPath = join(SCRIPTS, sttScript);
 if (!existsSync(sttPath)) die(`ไม่พบ ${sttScript}\n   ตั้ง SARARIF_CC_SCRIPTS ให้ชี้ไปโฟลเดอร์ scripts`);
 
 const wordsFor = (f: string) => join(WORK, `${basename(f).replace(/\.[^.]+$/, "")}.words.json`);
 
-for (const s of srcs) {
+// engine=capcut อ่านจากตัวโปรเจกต์ ไม่ใช่จากไฟล์คลิป — จึงมี "แหล่ง" เดียวคือโปรเจกต์เอง
+if (engine === "capcut") {
+  srcs.push({ file: PROJ, offset: 0 });
+  const track = flag("track");
+  const args = ["python3", sttPath, PROJ, "--out", WORK, ...(track ? ["--track", track] : [])];
+  const r = await sh(args);
+  if (r.code === 2) die("โปรเจกต์นี้มีข้อความหลายแทร็ก — เลือกด้วย --track <เลข> ตามที่แสดงข้างบน");
+  if (r.code !== 0) die("อ่านซับจาก CapCut ไม่สำเร็จ");
+  if (!existsSync(wordsFor(PROJ))) die(`อ่านเสร็จแต่ไม่พบไฟล์ผลลัพธ์: ${wordsFor(PROJ)}`);
+}
+
+for (const s of engine === "capcut" ? [] : srcs) {
   if (existsSync(wordsFor(s.file))) {
     console.log(`   ⏭️  ${basename(s.file)} ถอดไว้แล้ว ใช้ของเดิม`);
     continue;

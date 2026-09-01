@@ -195,23 +195,38 @@ for (const c of checks) {
 const missingReq = checks.filter((c) => !c.ok && c.level === "required");
 const missingOpt = checks.filter((c) => !c.ok && c.level === "optional");
 
-// ต้องมีทางถอดเสียงอย่างน้อย 1 ทาง ไม่งั้นใช้งานจริงไม่ได้
-const sttNames = ["ElevenLabs API key (ถอดเสียงแม่นระดับคำ)", "whisper.cpp (ถอดเสียงฟรีในเครื่อง)"];
-const noStt = checks.filter((c) => sttNames.includes(c.name)).every((c) => !c.ok);
+// ทางที่จะได้ "ข้อความ + เวลา" มามี 3 ทาง — ทางที่ 3 ฟรีและไม่ต้องติดตั้งอะไรเลย
+// จึงไม่บล็อกใครที่มีแค่ CapCut (คนส่วนใหญ่อยู่ตรงนี้)
+const hasKeyPath = checks.some((c) => c.name.startsWith("ElevenLabs") && c.ok);
+const hasWhisperPath = checks.some((c) => c.name.startsWith("whisper.cpp") && c.ok);
+const hasCapcutPath = checks.some((c) => c.name.startsWith("CapCut") && c.ok);
+const noStt = !hasKeyPath && !hasWhisperPath && !hasCapcutPath;
 
 console.log("─".repeat(52));
+
+if (!hasKeyPath && !hasWhisperPath && hasCapcutPath) {
+  console.log("\n💡 ยังไม่มีทางถอดเสียงแบบเสียเงินหรือ whisper — ไม่เป็นไร ใช้ทางฟรีได้เลย:\n");
+  console.log("   ให้ CapCut ถอดให้ก่อน (ฟรี ไม่ต้องติดตั้งอะไร):");
+  console.log("     CapCut → เลือกคลิป → Text → Auto captions → ภาษาไทย → ปิด CapCut ให้สนิท");
+  console.log("   แล้วสั่ง:");
+  console.log("     bun cc.ts <ชื่อโปรเจกต์> --engine capcut --dry\n");
+  console.log("   อยากได้เวลาเป๊ะระดับคำเพื่อไปตัดต่อ ค่อยเติมคีย์ Scribe ทีหลังได้ (~฿1/คลิป 3 นาที)\n");
+}
 
 if (missingReq.length || noStt) {
   console.log("\n🔴 ยังใช้ไม่ได้ — ต้องแก้ก่อน:\n");
   for (const c of missingReq) console.log(`  • ${c.name}\n    → ${c.fix}\n`);
   if (noStt) {
-    console.log("  • ยังไม่มีทางถอดเสียงเลยสักทาง (ต้องมีอย่างน้อย 1) — เลือกทางใดทางหนึ่ง:\n");
-    console.log("    ทาง A (ง่าย · ~฿1 ต่อคลิป 3 นาที · เวลาแม่นระดับคำ)");
+    console.log("  • ไม่มีทางได้ข้อความมาเลยสักทาง — เลือกทางใดทางหนึ่ง:\n");
+    console.log("    ทาง A · ฟรี ไม่ต้องติดตั้งอะไร (แนะนำถ้าเพิ่งเริ่ม)");
+    console.log("      ติดตั้ง CapCut เวอร์ชันคอมจาก capcut.com แล้วใช้ Auto captions ของมัน");
+    console.log("      จากนั้น:  bun cc.ts <โปรเจกต์> --engine capcut\n");
+    console.log("    ทาง B · เสียเงินนิดเดียว ~฿1 ต่อคลิป 3 นาที · เวลาแม่นระดับคำ");
     console.log(`      echo 'ELEVENLABS_API_KEY=คีย์ของคุณ' > ${join(HOME, ".sararif-cc.env").replace(HOME, "~")}`);
     console.log("      สมัคร/เอาคีย์ที่ https://elevenlabs.io\n");
     const macVer = Number((Bun.spawnSync(["sw_vers", "-productVersion"]).stdout.toString().split(".")[0]) || 0);
-    console.log(`    ทาง B (ฟรี · เวลาเพี้ยน ใช้เลือกจุดตัดต่อไม่ได้${
-      macVer && macVer < 14 ? ` · ⚠️ เครื่องนี้ macOS ${macVer} ต้อง compile เอง 20–40 นาที — แนะนำข้ามไปทาง A` : ""})`);
+    console.log(`    ทาง C · ฟรี แต่เวลาเพี้ยน ใช้เลือกจุดตัดต่อไม่ได้${
+      macVer && macVer < 14 ? ` · ⚠️ เครื่องนี้ macOS ${macVer} ต้อง compile เอง 20–40 นาที` : ""}`);
     console.log("      brew install whisper-cpp");
     console.log("      mkdir -p ~/.sararif-cc/models");
     console.log(`      curl -L -o ~/.sararif-cc/models/${modelName} \\`);

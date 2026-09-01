@@ -1,0 +1,17 @@
+# ขั้นตอน push ขึ้น GitHub (ทำหลังสมัคร sararif แล้ว)
+
+# 1) สร้าง repo เปล่าชื่อ sararif-cc บน github.com  (อย่าติ๊ก Add README / .gitignore / license)
+#    เพราะเรามีครบแล้ว ถ้าติ๊กจะชนกัน
+
+# 2) ผูก remote (เลือกอย่างใดอย่างหนึ่ง)
+git remote add origin https://github.com/sararif/sararif-cc.git
+
+# 3) ตั้งชื่อ branch หลักเป็น main แล้ว push
+git branch -M main
+git push -u origin main
+
+# ถ้าถาม username/password:
+#   username = sararif
+#   password = ต้องใช้ Personal Access Token ไม่ใช่รหัสผ่านจริง
+#   สร้างที่ github.com > Settings > Developer settings > Personal access tokens
+#   > Tokens (classic) > Generate new token > ติ๊ก repo อย่างเดียวพอ
