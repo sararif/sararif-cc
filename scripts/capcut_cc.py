@@ -70,22 +70,56 @@ def _hex_to_rgb01(h):
     return [int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4)]
 
 
-def text_material(txt, size, stroke_w=0.06, stroke_color="#000000", font=(None, None)):
+def hl_ranges(txt, keywords):
+    """หาช่วงตัวอักษรของคำที่จะเน้นสี — คืน [(start, end), ...] ไม่ทับกัน
+
+    เทียบแบบตัดช่องว่างทิ้งไม่ได้ เพราะต้องใช้ index จริงบนข้อความ จึงหาตรงๆ ทีละคำ
+    """
+    spans = []
+    for kw in keywords:
+        kw = kw.strip()
+        if not kw:
+            continue
+        i = txt.find(kw)
+        while i >= 0:
+            spans.append((i, i + len(kw)))
+            i = txt.find(kw, i + len(kw))
+    spans.sort()
+    out = []
+    for s, e in spans:
+        if out and s < out[-1][1]:      # ทับกับช่วงก่อนหน้า → ขยายช่วงเดิมแทน
+            out[-1] = (out[-1][0], max(out[-1][1], e))
+        else:
+            out.append((s, e))
+    return out
+
+
+def text_material(txt, size, stroke_w=0.06, stroke_color="#000000", font=(None, None),
+                  keywords=(), hl_color="#FFD400"):
     font_path, font_res = font
-    style = {
-        "range": [0, len(txt)], "size": size, "bold": True,
-        "fill": {"alpha": 1.0, "content": {"render_type": "solid", "solid": {"color": [1, 1, 1]}}},
-    }
-    # ใส่ฟอนต์เฉพาะเมื่อหาไฟล์เจอจริง — ชี้ไปไฟล์ที่ไม่มีอยู่ = เสี่ยงไม่เรนเดอร์ตัวอักษร
-    if font_path:
-        style["font"] = {"path": font_path, "id": font_res}
-    if stroke_w > 0:
-        # stroke จริงที่ CapCut เรนเดอร์ = styles[].strokes (เส้นขอบรอบตัวอักษร) — ขาวล้วนอ่านไม่ออกถ้าไม่มี
-        style["strokes"] = [{
-            "content": {"render_type": "solid", "solid": {"alpha": 1.0, "color": _hex_to_rgb01(stroke_color)}},
-            "width": stroke_w,
-        }]
-    content = json.dumps({"text": txt, "styles": [style]}, ensure_ascii=False)
+
+    def mkstyle(rng, color01):
+        st = {
+            "range": list(rng), "size": size, "bold": True,
+            "fill": {"alpha": 1.0, "content": {"render_type": "solid", "solid": {"color": color01}}},
+        }
+        # ใส่ฟอนต์เฉพาะเมื่อหาไฟล์เจอจริง — ชี้ไปไฟล์ที่ไม่มีอยู่ = เสี่ยงไม่เรนเดอร์ตัวอักษร
+        if font_path:
+            st["font"] = {"path": font_path, "id": font_res}
+        if stroke_w > 0:
+            # stroke จริงที่ CapCut เรนเดอร์ = styles[].strokes (เส้นขอบรอบตัวอักษร) — ขาวล้วนอ่านไม่ออกถ้าไม่มี
+            st["strokes"] = [{
+                "content": {"render_type": "solid", "solid": {"alpha": 1.0, "color": _hex_to_rgb01(stroke_color)}},
+                "width": stroke_w,
+            }]
+        return st
+
+    # style แรกครอบทั้งบรรทัด (ขาว) แล้วทับด้วย style ของคำที่เน้น (เหลือง) เฉพาะช่วงนั้น
+    styles = [mkstyle((0, len(txt)), [1, 1, 1])]
+    for s, e in hl_ranges(txt, keywords):
+        styles.append(mkstyle((s, e), _hex_to_rgb01(hl_color)))
+
+    content = json.dumps({"text": txt, "styles": styles}, ensure_ascii=False)
     return {
         "id": uid(), "type": "text", "content": content, "alignment": 1,
         "letter_spacing": 0, "line_spacing": 0.02, "line_max_width": 0.82, "line_feed": 1,
@@ -152,6 +186,8 @@ def main():
                     help="ความหนา stroke ขอบตัวอักษร 0-0.2 (default 0.06 = อ่านง่ายบนพื้นสว่าง). 0 = ปิด")
     ap.add_argument("--stroke-color", default="#000000")
     ap.add_argument("--font", default=None, help="ไฟล์ฟอนต์ .ttf (ไม่ใส่ = หาให้เอง)")
+    ap.add_argument("--highlight", default="", help="คำที่จะเน้นสี คั่นด้วย , (เช่น \"ฟรี,ลดน้ำหนัก\")")
+    ap.add_argument("--hl-color", default="#FFD400", help="สีคำที่เน้น (default เหลือง)")
     ap.add_argument("--drop-track", type=int, action="append", default=[],
                     help="ลบแทร็กข้อความเดิมตามเลขที่ระบุ (ใช้ตอนอ่านซับจาก CapCut มาทำใหม่ "
                          "ไม่งั้นซับเดิมจะซ้อนกับของใหม่บนจอ)")
@@ -192,7 +228,11 @@ def main():
         s["keyframe_refs"] = []; s["common_keyframes"] = []; s["caption_info"] = None
         return s
 
-    segs, ridx, total = [], 16100, 0
+    KEYWORDS = [k for k in a.highlight.split(",") if k.strip()]
+    if KEYWORDS:
+        print(f"🟡 เน้นสี {a.hl_color}: {' · '.join(KEYWORDS)}")
+
+    segs, ridx, total, hl_hits = [], 16100, 0, 0
     for i, spec in enumerate(a.sub):
         path, _, off = spec.rpartition(":")
         offset = float(off)
@@ -203,16 +243,20 @@ def main():
         lines = align_phrases(pspec.rpartition(":")[0], words) if pspec \
             else group(words, a.maxchars, a.gap)
         for st, en, txt in lines:
-            m = text_material(txt, a.size, a.stroke, a.stroke_color, FONT)
+            hits = hl_ranges(txt, KEYWORDS)
+            m = text_material(txt, a.size, a.stroke, a.stroke_color, FONT, KEYWORDS, a.hl_color)
             draft["materials"]["texts"].append(m)
             segs.append(text_segment(m["id"], round((st + offset) * US), round((en - st) * US), ridx))
-            ridx += 1; total += 1
-            print(f"  {st+offset:5.1f}s  {txt}")
+            ridx += 1; total += 1; hl_hits += len(hits)
+            print(f"  {st+offset:5.1f}s  {txt}" + ("  🟡" if hits else ""))
 
     draft["tracks"].append({"id": uid(), "type": "text", "segments": segs,
                             "flag": 0, "attribute": 0, "name": "", "is_default_name": True})
     DRAFT.write_text(json.dumps(draft, ensure_ascii=False))
-    print(f"✅ inject cc {total} วลี (มหานคร, ตัดครบคำ, y={a.y}) — สำรอง .PRE_CC_BAK")
+    extra = f" · เน้นสี {hl_hits} จุด" if KEYWORDS else ""
+    print(f"✅ inject cc {total} วลี (ตัดครบคำ, y={a.y}){extra} — สำรอง .PRE_CC_BAK")
+    if KEYWORDS and hl_hits == 0:
+        print("   ⚠️ ไม่เจอคำที่สั่งเน้นเลยสักบรรทัด — เช็คว่าสะกดตรงกับที่พูดในคลิปไหม")
 
 
 if __name__ == "__main__":

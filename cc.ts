@@ -26,6 +26,8 @@
  *                                auto (ค่าเริ่มต้น) = ไม่ใส่คลิป → capcut (ฟรี)
  *                                                     ใส่คลิป → scribe ถ้ามีคีย์ ไม่มีใช้ local
  *   --track N                    เลือกแทร็กข้อความ (ใช้กับ --engine capcut)
+ *   --highlight "ฟรี,ลดน้ำหนัก"    คำที่จะเน้นสีเหลืองในซับ (คั่นด้วย ,)
+ *   --hl-color "#FFD400"         เปลี่ยนสีคำที่เน้น
  *   --maxchars 16                ความยาวสูงสุดต่อบรรทัด
  *   --y -0.80                    ตำแหน่งแนวตั้ง (-1 = ล่างสุด)
  *   --size 15                    ขนาดตัวอักษร
@@ -186,7 +188,6 @@ if (engine === "capcut") {
   const track = flag("track");
   const args = ["python3", sttPath, PROJ, "--out", WORK, ...(track ? ["--track", track] : [])];
   const r = await sh(args);
-  if (r.code === 2) die("โปรเจกต์นี้มีข้อความหลายแทร็ก — เลือกด้วย --track <เลข> ตามที่แสดงข้างบน");
   if (r.code !== 0) die("อ่านซับจาก CapCut ไม่สำเร็จ");
   if (!existsSync(wordsFor(PROJ))) die(`อ่านเสร็จแต่ไม่พบไฟล์ผลลัพธ์: ${wordsFor(PROJ)}`);
 }
@@ -275,6 +276,8 @@ for (const s of srcs) {
   ccArgs.push("--sub", `${wordsFor(s.file)}:${s.offset}`, "--phrases", `${pf}:${s.offset}`);
 }
 ccArgs.push("--maxchars", MAXCHARS, "--y", Y, "--size", SIZE);
+const HL = flag("highlight", "")!;
+if (HL) ccArgs.push("--highlight", HL, "--hl-color", flag("hl-color", "#FFD400")!);
 
 // engine=capcut: ลบแทร็กซับเดิมที่เราอ่านมาทำใหม่ ไม่งั้นซับ 2 ชุดซ้อนกันบนจอ
 // (ของเดิมยังอยู่ในไฟล์สำรอง .PRE_CC_BAK · สั่ง --keep-source ถ้าอยากเก็บไว้เทียบ)

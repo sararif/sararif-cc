@@ -121,7 +121,16 @@ def main():
                  "   เปิด CapCut → เลือกคลิป → Text → Auto captions (ภาษาไทย) → รอมันถอดเสร็จ\n"
                  "   → ปิด CapCut ให้สนิท → ค่อยรันคำสั่งนี้ใหม่")
 
-    if a.list or a.track is None and len(tracks) > 1:
+    # หลายแทร็ก = เดาให้ก่อน (แทร็กที่กล่องเยอะสุด = คำพูด ไม่ใช่ไตเติล/hook ที่มีไม่กี่กล่อง)
+    # แล้วบอกวิธีเปลี่ยน — ดีกว่าหยุดให้คนไปนั่งไล่เลขเอง
+    if a.track is None and len(tracks) > 1 and not a.list:
+        pick = max(tracks, key=lambda t: len(t[1]))
+        print(f"ℹ️ มีข้อความ {len(tracks)} แทร็ก เลือกแทร็ก {pick[0]} ({len(pick[1])} กล่อง) เป็นตัวคำพูด")
+        print("   ไม่ใช่ตัวนี้ → เติม --track <เลข> จาก: "
+              + " · ".join(f"{i}({len(r)})" for i, r in tracks))
+        a.track = pick[0]
+
+    if a.list:
         print(f"\n📄 เจอแทร็กข้อความ {len(tracks)} แทร็กในโปรเจกต์นี้:\n")
         for i, rows in tracks:
             avg = sum(e - s for s, e, _ in rows) / len(rows)
@@ -129,11 +138,7 @@ def main():
             for s, e, t in rows[:2]:
                 print(f"              {s:6.2f}s  {t[:44]}")
             print()
-        if a.list:
-            return
-        print("มีหลายแทร็ก เลือกด้วย --track <เลข> ก่อนครับ")
-        print("(แทร็กที่กล่องยาวๆ ไม่กี่กล่อง = ของ auto-caption · แทร็กที่กล่องสั้นเยอะๆ = ที่เราแบ่งไปแล้ว)")
-        sys.exit(2)
+        return
 
     idx, rows = (next((t for t in tracks if t[0] == a.track), (None, None))
                  if a.track is not None else tracks[0])
