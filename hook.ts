@@ -54,4 +54,6 @@ for await (const rel of new Glob("Timelines/*/draft_info.json").scan(dir)) {
   n++;
 }
 console.log(`   sync Timelines ${n} ไฟล์`);
-console.log(`\n👉 เปิด CapCut ดูผลได้เลย — อยากขยับตำแหน่ง/ขนาด ลากเองในโปรแกรมได้ ไม่โดนทับ\n`);
+if (!process.env.SARARIF_CC_CHAIN) {
+  console.log(`\n👉 เปิด CapCut ดูผลได้เลย — อยากขยับตำแหน่ง/ขนาด ลากเองในโปรแกรมได้ ไม่โดนทับ\n`);
+}

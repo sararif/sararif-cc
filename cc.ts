@@ -311,5 +311,7 @@ if (after <= before) die(`ไฟล์ไม่โตขึ้น (${before} →
 
 console.log(`\n✅ เสร็จ — ใส่ซับ ${nLines} บรรทัด · sync Timelines ${synced} ไฟล์`);
 console.log(`   ไฟล์สำรอง: ${PROJ}/draft_info.json.PRE_CC_BAK`);
-console.log(`\n👉 เปิด CapCut แล้วเปิดโปรเจกต์ "${PROJ}" ดูได้เลย`);
-console.log(`   ถ้าซับไม่ขึ้น: ปิด CapCut สนิทก่อนแล้วเปิดใหม่ (มันแคช draft ไว้)\n`);
+if (!process.env.SARARIF_CC_CHAIN) {
+  console.log(`\n👉 เปิด CapCut แล้วเปิดโปรเจกต์ "${PROJ}" ดูได้เลย`);
+  console.log(`   ถ้าซับไม่ขึ้น: ปิด CapCut สนิทก่อนแล้วเปิดใหม่ (มันแคช draft ไว้)\n`);
+}

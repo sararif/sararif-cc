@@ -211,4 +211,6 @@ console.log(`   sync Timelines ${res.synced} ไฟล์ · สำรอง .PR
 if (others.length) {
   console.log(`\n⚠️ มีแทร็ก ${others.map((t: any) => t.type).join("/")} อีก ${others.length} แทร็ก ที่ยังใช้เวลาเดิม — ต้องขยับเองใน CapCut`);
 }
-console.log(`\n👉 ต่อด้วย  bun cc.ts ${PROJ}  เพื่อแบ่งบรรทัดซับใหม่ให้ตรงกับที่ตัดแล้ว\n`);
+if (!process.env.SARARIF_CC_CHAIN) {
+  console.log(`\n👉 ต่อด้วย  bun cc.ts ${PROJ}  เพื่อแบ่งบรรทัดซับใหม่ให้ตรงกับที่ตัดแล้ว\n`);
+}
