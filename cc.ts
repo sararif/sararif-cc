@@ -10,10 +10,10 @@
  * ตัวนี้: ถอดเสียง → แบ่งวลีตามกฎไทย (pythainlp + ENDERS/STARTERS) → ใส่ลง CapCut
  *
  * ใช้:
- *   ── ทางฟรี ไม่ต้องติดตั้งอะไร ไม่ต้องมีคีย์ ไม่ต้องใส่ไฟล์คลิป ──
+ *   ── ทางฟรี (ค่าเริ่มต้น) ไม่ต้องติดตั้งอะไร ไม่ต้องมีคีย์ ไม่ต้องใส่ไฟล์คลิป ──
  *   กด Auto captions ใน CapCut ก่อน (ฟรี) → ปิด CapCut → แล้วสั่ง:
- *   bun cc.ts 0831 --engine capcut --dry
- *   bun cc.ts 0831 --engine capcut --track 2        # ถ้ามีข้อความหลายแทร็ก
+ *   bun cc.ts 0831 --dry
+ *   bun cc.ts 0831 --track 2                        # ถ้ามีข้อความหลายแทร็ก
  *
  *   ── ทางที่เวลาแม่นระดับคำ (ต้องมีคีย์ Scribe / whisper) ──
  *   bun cc.ts 0831 ~/Downloads/IMG_8658.MOV
@@ -23,7 +23,8 @@
  * ตัวเลือก:
  *   --engine auto|capcut|local|scribe
  *                                capcut = อ่านซับที่ CapCut ถอดไว้แล้ว (ฟรี ไม่ต้องลงอะไร)
- *                                auto = มี key ใช้ scribe ไม่มีใช้ local (ค่าเริ่มต้น)
+ *                                auto (ค่าเริ่มต้น) = ไม่ใส่คลิป → capcut (ฟรี)
+ *                                                     ใส่คลิป → scribe ถ้ามีคีย์ ไม่มีใช้ local
  *   --track N                    เลือกแทร็กข้อความ (ใช้กับ --engine capcut)
  *   --maxchars 16                ความยาวสูงสุดต่อบรรทัด
  *   --y -0.80                    ตำแหน่งแนวตั้ง (-1 = ล่างสุด)
@@ -76,7 +77,10 @@ const positional = argv.filter((a, i) => {
   return !(i > 0 && argv[i - 1].startsWith("--") && !["dry"].includes(argv[i - 1].slice(2)));
 });
 
-const ENGINE = flag("engine", "auto")!;
+// ค่าเริ่มต้นต้องเป็น "ทางฟรี" เสมอ — ไม่ใส่ไฟล์คลิปมา = ใช้ซับที่ CapCut ถอดไว้แล้ว
+// (ใส่คลิปมาด้วย = ตั้งใจถอดเสียงใหม่ ค่อยไป scribe/local)
+const ENGINE_FLAG = flag("engine", "auto")!;
+const ENGINE = ENGINE_FLAG === "auto" && positional.length === 1 ? "capcut" : ENGINE_FLAG;
 // engine=capcut ไม่ต้องมีไฟล์คลิป เพราะอ่านซับที่ CapCut ถอดไว้แล้วในตัวโปรเจกต์
 const NEEDS_CLIP = ENGINE !== "capcut";
 
@@ -207,10 +211,15 @@ const segmentOne = async (s: Src) => {
     { quiet: true },
   );
   if (r.code !== 0) die(`แบ่งวลีล้มเหลว: ${basename(s.file)}\n${r.err}`);
-  return r.out.split("\n").filter(Boolean).map((l) => {
+  const rows = r.out.split("\n").filter(Boolean).map((l) => {
     const [st, en, ...rest] = l.split("\t");
     return { st: parseFloat(st), en: parseFloat(en), text: rest.join("\t") };
   });
+  // ด่านกัน: แถวที่เวลาเสียหรือข้อความว่าง = มีข้อความหายไประหว่างทาง
+  // ต้องดังตรงนี้ ไม่ใช่ปล่อยให้ไปโผล่เป็นซับเปล่าบนจอ (เคส \n ในกล่อง CapCut 4 ก.ย. 69)
+  const broken = rows.filter((x) => !Number.isFinite(x.st) || !Number.isFinite(x.en) || !x.text.trim());
+  if (broken.length) die(`แบ่งวลีได้ผลเสียหาย ${broken.length}/${rows.length} บรรทัด (เวลาไม่ใช่ตัวเลข หรือข้อความว่าง)\n   ไม่เขียนลง CapCut เพื่อกันซับเปล่า — แจ้งบั๊กพร้อมชื่อโปรเจกต์ได้เลย`);
+  return rows;
 };
 
 if (DRY) {

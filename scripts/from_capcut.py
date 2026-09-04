@@ -37,6 +37,26 @@ def seg_text(mat):
         return c if isinstance(c, str) else ""
 
 
+def flatten(txt):
+    """รวมกล่องที่ CapCut ขึ้นบรรทัดใหม่ไว้ ให้เหลือบรรทัดเดียว
+
+    🐛 กล่อง auto-caption ของ CapCut ที่ยาวเกินจอจะมี \\n อยู่ข้างใน (เช่น "เครื่อง\\nนะครับ")
+    ถ้าปล่อยผ่าน ตารางที่ส่งต่อให้ cc.ts จะแตกเป็น 2 บรรทัด บรรทัดหลังไม่มีเวลา
+    → ข้อความหลังจุดขึ้นบรรทัดหายทั้งท่อน (วัดจริง 4 ก.ย. 69: หาย 29-40% ของบรรทัด)
+
+    ไทยไม่มีเว้นวรรค จุดที่ CapCut ตัดจึงต่อกันตรงๆ ได้ — เว้นวรรคเฉพาะตอนคาบกับอักษรโรมัน
+    """
+    out = []
+    for part in txt.replace("\r", "\n").split("\n"):
+        part = part.strip()
+        if not part:
+            continue
+        if out and (out[-1][-1].isascii() and out[-1][-1].isalnum() or part[0].isascii() and part[0].isalnum()):
+            out.append(" ")
+        out.append(part)
+    return "".join(out)
+
+
 def read_tracks(draft):
     """คืน [(track_index, [(start_sec, end_sec, text), ...]), ...] เฉพาะแทร็กข้อความที่มีของ"""
     d = json.load(open(draft, encoding="utf-8"))
@@ -50,7 +70,7 @@ def read_tracks(draft):
             mat = texts.get(s.get("material_id"))
             if not mat:
                 continue
-            txt = seg_text(mat).strip()
+            txt = flatten(seg_text(mat))
             if not txt:
                 continue
             r = s.get("target_timerange", {})
