@@ -64,7 +64,7 @@ LEADING_BAN = {
 }
 
 
-def group_v2(words, maxchars, gap, breaks=()):
+def group_v2(words, maxchars, gap, breaks=(), scenes=()):
     """เหมือน group() เดิม แต่เพิ่มกฎ: ห้ามจบบรรทัดด้วยคำใน TRAILING_BAN
 
     คืน [(start, end, text)]
@@ -88,10 +88,16 @@ def group_v2(words, maxchars, gap, breaks=()):
             out += t
         return out.strip()
 
-    def flush():
+    def flush(end_at=None):
+        """ปิดบรรทัดปัจจุบัน — end_at ใช้ตอนตัดที่รอยตัดภาพ ให้ซับจบตรงรอยตัดพอดี
+
+        เวลาของคำมาจากการเฉลี่ยตามตัวอักษร คำหนึ่งจึงคร่อมรอยตัดได้
+        ถ้าไม่หด ซับจะค้างต่อไปอีก ~0.3 วิ บนฉากใหม่
+        """
         nonlocal cur, start, last
         if cur:
-            lines.append((start, last, smart_join(cur)))
+            en = last if end_at is None else max(start + 0.05, min(last, end_at))
+            lines.append((start, en, smart_join(cur)))
         cur, start, last = [], None, None
 
     def ends_badly():
@@ -107,7 +113,16 @@ def group_v2(words, maxchars, gap, breaks=()):
         return t in LEADING_BAN or bool(re.match(r"^[A-Za-z]", t))
 
     brk = list(breaks)
+    scn = list(scenes)
     for tk, st, en in words:
+        # ── รอยตัดภาพ: ตัดเสมอ ไม่มีข้อยกเว้น ──
+        # ซับที่ลากข้ามรอยตัดจะค้างคร่อมฉากถัดไป ผิดกฎ "ทุกรอยตัด = จบความคิด"
+        # ชนะกฎห้ามขึ้นบรรทัดด้วยคำลงท้าย เพราะคำที่พูดหลังรอยตัด = ของฉากใหม่จริงๆ
+        while scn and st >= scn[0] - 1e-6:
+            if cur:
+                flush(end_at=scn[0])
+            scn.pop(0)
+
         # ── เส้นตาย: ขอบกล่องซับต้นทาง (เช่นกล่องของ CapCut auto-caption) ──
         # ตัดแน่นอน ไม่สนกฎอื่นเลย เพราะข้ามขอบกล่อง = เอาคนละประโยคมาต่อกัน
         # ใช้แทนการเดาจาก "ช่องว่างเวลา" ซึ่งพังเมื่อกล่องต่อกันสนิท (ช่องว่าง = 0)
@@ -150,7 +165,8 @@ def main():
     ap.add_argument("words_json")
     ap.add_argument("--maxchars", type=int, default=16)
     ap.add_argument("--gap", type=float, default=0.4)
-    ap.add_argument("--breaks", help="ไฟล์เวลาขอบกล่องต้นทาง (บรรทัดละ 1 วินาที) — ตัดตรงนี้เสมอ")
+    ap.add_argument("--breaks", help="ไฟล์เวลาขอบกล่องซับต้นทาง (บรรทัดละ 1 วินาที) — ตัดถ้าไม่ขัดกฎอื่น")
+    ap.add_argument("--scenes", help="ไฟล์เวลารอยตัดภาพ (บรรทัดละ 1 วินาที) — ตัดเสมอ")
     ap.add_argument("--offset", type=float, default=0.0)
     ap.add_argument("--legacy", action="store_true", help="ใช้ group() เดิม ไม่ใช้กฎห้ามค้างท้าย")
     a = ap.parse_args()
@@ -166,7 +182,10 @@ def main():
         breaks = []
         if a.breaks and pathlib.Path(a.breaks).exists():
             breaks = [float(x) for x in pathlib.Path(a.breaks).read_text().split() if x.strip()]
-        lines = group_v2(words, a.maxchars, a.gap, breaks)
+        scenes = []
+        if a.scenes and pathlib.Path(a.scenes).exists():
+            scenes = [float(x) for x in pathlib.Path(a.scenes).read_text().split() if x.strip()]
+        lines = group_v2(words, a.maxchars, a.gap, breaks, scenes)
 
     for st, en, tx in lines:
         print(f"{st + a.offset:.3f}\t{en + a.offset:.3f}\t{tx}")

@@ -158,8 +158,29 @@ def main():
 
     # ขอบกล่องของ CapCut = เส้นตาย ห้ามเอาท้ายกล่องนี้ไปต่อหัวกล่องหน้า
     # (พึ่ง "ช่องว่างเวลา" อย่างเดียวไม่ได้ เพราะบางโปรเจกต์กล่องต่อกันสนิท ช่องว่าง = 0)
+    #
+    # รอยต่อฉาก (ขอบ segment วิดีโอ) ก็เป็นเส้นตายเหมือนกัน — ซับที่ลากข้ามรอยตัด
+    # จะค้างคร่อมฉากถัดไป ผิดกฎ "ทุกรอยตัด = จบความคิด"
+    # (เจอตอนรัน check.ts 4 ก.ย. 69 หลังตัดช่วงเงียบแล้วซับยังพาดผ่านรอยตัด 2 จุด)
+    d = json.load(open(draft, encoding="utf-8"))
+    scene_cuts = []
+    for tr in d.get("tracks", []):
+        if tr.get("type") != "video":
+            continue
+        starts = sorted((s.get("target_timerange", {}).get("start", 0)) / 1e6
+                        for s in tr.get("segments", []))
+        scene_cuts += starts[1:]
+        break
+
     b = out / f"{label}.breaks.txt"
     b.write_text("\n".join(f"{s:.3f}" for s, _, _ in rows[1:]), encoding="utf-8")
+
+    # แยกไฟล์ เพราะ 2 อย่างนี้เข้มไม่เท่ากัน:
+    #   breaks (ขอบกล่องซับ) = ตัดถ้าไม่ขัดกฎอื่น
+    #   scenes (รอยตัดภาพ)   = ตัดเสมอ ไม่มีข้อยกเว้น — คำที่พูดหลังรอยตัดเป็นของฉากใหม่
+    sc = out / f"{label}.scenes.txt"
+    sc.write_text("\n".join(f"{x:.3f}" for x in sorted(set(round(v, 3) for v in scene_cuts if v > 0))),
+                  encoding="utf-8")
 
     # จำไว้ว่าอ่านมาจากแทร็กไหน — ตอนเขียนซับใหม่ต้องลบแทร็กนี้ทิ้ง ไม่งั้นซ้อนกันบนจอ
     (out / f"{label}.srctrack.txt").write_text(str(idx), encoding="utf-8")

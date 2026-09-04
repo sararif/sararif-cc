@@ -135,6 +135,14 @@ const newTime = (t: number): number | null => {
   return null;
 };
 
+/** ปลายกล่องซับที่ล้ำเข้าไปในช่วงที่ถูกตัดออก ต้องหดมาจบที่ขอบท่อน
+ *  ไม่งั้นกล่องยาวข้ามรอยตัด = ซับค้างคร่อมฉากถัดไป (เจอตอนรัน check.ts 4 ก.ย. 69) */
+const clampEnd = (stOld: number, enOld: number): number | null => {
+  const r = remap.find((x) => stOld >= x.from - 1e-6 && stOld <= x.to + 1e-6);
+  if (!r) return null;
+  return r.at + (Math.min(enOld, r.to) - r.from);
+};
+
 if (DRY) {
   console.log("👀 โหมด --dry: ยังไม่แตะโปรเจกต์ — ช่วงที่จะเก็บไว้:\n");
   for (const p of pieces.slice(0, 25)) {
@@ -194,7 +202,7 @@ for (const tt of textTracks(draft)) {
     const r = s.target_timerange || {};
     const st = newTime((r.start || 0) / US);
     if (st === null) { dropped++; continue; }
-    const en = newTime(((r.start || 0) + (r.duration || 0)) / US);
+    const en = clampEnd((r.start || 0) / US, ((r.start || 0) + (r.duration || 0)) / US);
     s.target_timerange = {
       start: Math.round(st * US),
       duration: Math.round(Math.max(0.1, (en ?? st + (r.duration || 0) / US) - st) * US),
