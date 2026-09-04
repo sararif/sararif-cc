@@ -28,6 +28,7 @@
  *   --track N                    เลือกแทร็กข้อความ (ใช้กับ --engine capcut)
  *   --highlight "ฟรี,ลดน้ำหนัก"    คำที่จะเน้นสีเหลืองในซับ (คั่นด้วย ,)
  *   --hl-color "#FFD400"         เปลี่ยนสีคำที่เน้น
+ *   --style text|karaoke|genz     สไตล์ซับ (ดูรายละเอียด: bun setup.ts --show)
  *   --maxchars 16                ความยาวสูงสุดต่อบรรทัด
  *   --y -0.80                    ตำแหน่งแนวตั้ง (-1 = ล่างสุด)
  *   --size 15                    ขนาดตัวอักษร
@@ -38,7 +39,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, basename, dirname } from "node:path";
-import { loadFormat } from "./lib/format";
+import { loadFormat, STYLES } from "./lib/format";
 
 const HOME = homedir();
 const HERE = dirname(new URL(import.meta.url).pathname);
@@ -95,7 +96,8 @@ if (positional.length < (NEEDS_CLIP ? 2 : 1) || has("help")) {
 const PROJ = positional[0];
 const SOURCES = positional.slice(1);
 // ค่าเริ่มต้นมาจากไฟล์ฟอร์แมตของผู้ใช้ (~/.sararif-cc/format.json) ธงในคำสั่งทับได้เสมอ
-const FMT = loadFormat();
+const FMT = loadFormat(flag("style"));
+const STYLE = STYLES[FMT.style] ?? STYLES.text;
 const MAXCHARS = flag("maxchars", String(FMT.subtitle.maxchars))!;
 const Y = flag("y", String(FMT.subtitle.y))!;
 const SIZE = flag("size", String(FMT.subtitle.size))!;
@@ -237,7 +239,11 @@ if (DRY) {
       n++;
     }
   }
-  console.log(`\n✅ รวม ${n} บรรทัด — เอาแฟลก --dry ออกแล้วรันใหม่เพื่อเขียนลง CapCut\n`);
+  console.log(`\n✅ รวม ${n} บรรทัด (สไตล์ ${FMT.style}) — เอาแฟลก --dry ออกแล้วรันใหม่เพื่อเขียนลง CapCut`);
+  if (STYLE.mode === "karaoke") {
+    console.log(`   ℹ️ สไตล์คาราโอเกะจะซอยเป็นรายคำตอนเขียนจริง ที่เห็นข้างบนคือการแบ่งวลี`);
+  }
+  console.log();
   process.exit(0);
 }
 
@@ -280,7 +286,7 @@ for (const s of srcs) {
   await Bun.write(pf, lines.map((l) => l.text).join("\n") + "\n");
   ccArgs.push("--sub", `${wordsFor(s.file)}:${s.offset}`, "--phrases", `${pf}:${s.offset}`);
 }
-ccArgs.push("--maxchars", MAXCHARS, "--y", Y, "--size", SIZE);
+ccArgs.push("--maxchars", MAXCHARS, "--y", Y, "--size", SIZE, "--mode", STYLE.mode);
 const HL = flag("highlight", "")!;
 if (HL) ccArgs.push("--highlight", HL, "--hl-color", flag("hl-color", FMT.highlightColor)!);
 

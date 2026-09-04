@@ -10,7 +10,7 @@
  */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { USER_DIR, FORMAT_FILE, DEFAULTS, loadFormat } from "./lib/format";
+import { USER_DIR, FORMAT_FILE, DEFAULTS, STYLES, loadFormat } from "./lib/format";
 
 const SHOW_ONLY = process.argv.includes("--show");
 
@@ -19,6 +19,9 @@ const FORMAT_TEMPLATE = `// ── ฟอร์แมตของคุณ ─�
 // ไม่ใช่ของตายตัว — แก้ตัวเลขได้เลย ลบบรรทัดไหนออกก็ได้ ที่ลบจะใช้ค่าเริ่มต้น
 // บรรทัดที่ขึ้นต้นด้วย // เป็นหมายเหตุ ระบบข้ามให้
 {
+  // สไตล์ซับ: "text" (วลีสั้นขาว) · "karaoke" (ทีละคำตามจังหวะพูด) · "genz" (ใหญ่ วลีเหลือง)
+  "style": "${DEFAULTS.style}",
+
   // ความยาวคลิปที่ตั้งเป้า (วินาที) — ตัวตรวจจะเตือนถ้าเกิน
   // ผมใช้ 25-30 เพราะคลิปช่องผมที่ยาวเกิน 60 วิ ยังไม่เคยทำวิวเกินค่าเฉลี่ย
   // ถ้าคลิปคุณเป็นสายสอน/รีวิวยาว ก็ตั้ง 60 หรือ 90 ได้
@@ -88,10 +91,24 @@ if (!SHOW_ONLY) {
 const f = loadFormat();
 console.log(`
 ════════════════════════════════════════════════════════
+ สไตล์ซับ — เลือกได้ 3 แบบ
+════════════════════════════════════════════════════════
+${Object.entries(STYLES).map(([k, s]) => `
+  --style ${k.padEnd(9)} ${s.label}${k === f.style ? "   ← ใช้อยู่ตอนนี้" : ""}
+     ${s.desc}
+     ซับ ${s.maxchars} ตัว/บรรทัด · ขนาด ${s.size}`).join("\n")}
+
+  ลองสลับดูได้:  bun go.ts myproj --style genz
+  ถูกใจแบบไหน ใส่ "style": "genz" ในไฟล์ตั้งค่า จะได้ไม่ต้องพิมพ์ทุกครั้ง
+
+════════════════════════════════════════════════════════
  ทุกอย่างปรับได้ — ไม่มีอะไรตายตัว
 ════════════════════════════════════════════════════════
 
 ตอนนี้ตั้งไว้แบบนี้:
+`);
+console.log(`   สไตล์ซับ                 ${f.style} (${STYLES[f.style]?.label ?? "?"})`);
+console.log(`\
 
    ความยาวคลิปที่ตั้งเป้า   ${f.clipSeconds.min}-${f.clipSeconds.max} วินาที
    ซับ                      ${f.subtitle.maxchars} ตัวอักษร/บรรทัด · ขนาด ${f.subtitle.size}

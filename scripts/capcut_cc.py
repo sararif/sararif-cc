@@ -188,6 +188,8 @@ def main():
     ap.add_argument("--font", default=None, help="ไฟล์ฟอนต์ .ttf (ไม่ใส่ = หาให้เอง)")
     ap.add_argument("--highlight", default="", help="คำที่จะเน้นสี คั่นด้วย , (เช่น \"ฟรี,ลดน้ำหนัก\")")
     ap.add_argument("--hl-color", default="#FFD400", help="สีคำที่เน้น (default เหลือง)")
+    ap.add_argument("--mode", default="text", choices=["text", "karaoke", "genz"],
+                    help="text = วลีสั้นขาว · karaoke = ทีละคำตามจังหวะพูด · genz = วลีไหนมีคำเด็ด เหลืองทั้งวลี")
     ap.add_argument("--drop-track", type=int, action="append", default=[],
                     help="ลบแทร็กข้อความเดิมตามเลขที่ระบุ (ใช้ตอนอ่านซับจาก CapCut มาทำใหม่ "
                          "ไม่งั้นซับเดิมจะซ้อนกับของใหม่บนจอ)")
@@ -240,11 +242,20 @@ def main():
         text, times = apply_fix(text, times)
         words = words_with_time(text, times)
         pspec = a.phrases[i] if i < len(a.phrases) else None
-        lines = align_phrases(pspec.rpartition(":")[0], words) if pspec \
-            else group(words, a.maxchars, a.gap)
+        if a.mode == "karaoke":
+            # ทีละคำ โผล่ตามจังหวะพูด — ตาคนดูวิ่งตลอด แม้ภาพจะค้าง
+            lines = [(ws, we, w) for w, ws, we in words if w.strip()]
+        else:
+            lines = align_phrases(pspec.rpartition(":")[0], words) if pspec \
+                else group(words, a.maxchars, a.gap)
+
         for st, en, txt in lines:
             hits = hl_ranges(txt, KEYWORDS)
-            m = text_material(txt, a.size, a.stroke, a.stroke_color, FONT, KEYWORDS, a.hl_color)
+            if a.mode == "genz" and hits:
+                # วลีไหนมีคำเด็ด = เหลืองทั้งวลี ไม่ใช่เหลืองแค่คำเดียว
+                m = text_material(txt, a.size, a.stroke, a.stroke_color, FONT, [txt], a.hl_color)
+            else:
+                m = text_material(txt, a.size, a.stroke, a.stroke_color, FONT, KEYWORDS, a.hl_color)
             draft["materials"]["texts"].append(m)
             segs.append(text_segment(m["id"], round((st + offset) * US), round((en - st) * US), ridx))
             ridx += 1; total += 1; hl_hits += len(hits)
@@ -254,7 +265,8 @@ def main():
                             "flag": 0, "attribute": 0, "name": "", "is_default_name": True})
     DRAFT.write_text(json.dumps(draft, ensure_ascii=False))
     extra = f" · เน้นสี {hl_hits} จุด" if KEYWORDS else ""
-    print(f"✅ inject cc {total} วลี (ตัดครบคำ, y={a.y}){extra} — สำรอง .PRE_CC_BAK")
+    unit = "คำ" if a.mode == "karaoke" else "วลี"
+    print(f"✅ inject cc {total} {unit} (สไตล์ {a.mode}, ขนาด {a.size}, y={a.y}){extra} — สำรอง .PRE_CC_BAK")
     if KEYWORDS and hl_hits == 0:
         print("   ⚠️ ไม่เจอคำที่สั่งเน้นเลยสักบรรทัด — เช็คว่าสะกดตรงกับที่พูดในคลิปไหม")
 

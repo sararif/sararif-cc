@@ -9,6 +9,7 @@
  *   bun go.ts <โปรเจกต์>
  *   bun go.ts <โปรเจกต์> --highlight "ฟรี,ลดน้ำหนัก"
  *   bun go.ts <โปรเจกต์> --highlight "ฟรี" --l1 "ตัดคลิป 1 ชั่วโมง" --l2 "เหลือ [3 นาที]"
+ *   bun go.ts <โปรเจกต์> --style genz      เลือกสไตล์ซับ (text · karaoke · genz)
  *   bun go.ts <โปรเจกต์> --no-cut          ไม่ต้องตัดช่วงเงียบ เอาแค่ซับ
  *   bun go.ts <โปรเจกต์> --dry             ดูว่าจะตัดอะไรออก แล้วหยุด
  *
@@ -18,7 +19,7 @@
  *
  * ตัวเลือกที่ส่งต่อให้แต่ละขั้น:
  *   ตัดช่วงเงียบ   --head --tail --gap --min
- *   ซับ            --highlight --hl-color --maxchars --y --size
+ *   ซับ            --style --highlight --hl-color --maxchars --y --size
  *   hook           --l1 --l2 --l3 --hook-start --hook-dur --hook-y --hook-size
  *   ทั้งคู่        --track   (แทร็กซับที่ใช้เป็นตัวจับคำพูด)
  *
@@ -80,7 +81,7 @@ if (!NOCUT) {
 }
 
 await step("ใส่ซับ", "cc.ts", [
-  ...pass(["highlight", "hl-color", "maxchars", "y", "size"]), ...trackArgs,
+  ...pass(["highlight", "hl-color", "maxchars", "y", "size", "style"]), ...trackArgs,
 ]);
 
 const hookLines = ["l1", "l2", "l3"].filter((n) => flag(n) !== null);
