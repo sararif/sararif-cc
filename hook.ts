@@ -23,6 +23,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireCapCutClosed, draftPath, die } from "./lib/draft";
+import { loadFormat } from "./lib/format";
 import { Glob } from "bun";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -39,10 +40,17 @@ if (!existsSync(draftPath(PROJ))) die(`ไม่พบโปรเจกต์ "
 
 await requireCapCutClosed();
 
+// ค่าเริ่มต้นมาจากไฟล์ฟอร์แมตของผู้ใช้ ธงในคำสั่งทับได้เสมอ
+const FMT = loadFormat();
+const fallback = (name: string, v: string | number) =>
+  argv.includes(`--${name}`) ? [] : [`--${name}`, String(v)];
+
 const py = join(HERE, "scripts", "capcut_hook.py");
-const proc = Bun.spawnSync(["python3", py, PROJ, ...argv.filter((a) => a !== PROJ)], {
-  stdout: "inherit", stderr: "inherit",
-});
+const proc = Bun.spawnSync([
+  "python3", py, PROJ, ...argv.filter((a) => a !== PROJ),
+  ...fallback("y", FMT.hook.y), ...fallback("size", FMT.hook.size),
+  ...fallback("dur", FMT.hook.seconds), ...fallback("color", FMT.highlightColor),
+], { stdout: "inherit", stderr: "inherit" });
 if (proc.exitCode !== 0) die("ใส่ hook ไม่สำเร็จ");
 
 // CapCut อ่านจากสำเนาใน Timelines/ — ไม่ก๊อปไปด้วย งานจะหายตอนเปิดโปรแกรม

@@ -38,6 +38,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, basename, dirname } from "node:path";
+import { loadFormat } from "./lib/format";
 
 const HOME = homedir();
 const HERE = dirname(new URL(import.meta.url).pathname);
@@ -93,9 +94,11 @@ if (positional.length < (NEEDS_CLIP ? 2 : 1) || has("help")) {
 
 const PROJ = positional[0];
 const SOURCES = positional.slice(1);
-const MAXCHARS = flag("maxchars", "16")!;
-const Y = flag("y", "-0.80")!;
-const SIZE = flag("size", "15")!;
+// ค่าเริ่มต้นมาจากไฟล์ฟอร์แมตของผู้ใช้ (~/.sararif-cc/format.json) ธงในคำสั่งทับได้เสมอ
+const FMT = loadFormat();
+const MAXCHARS = flag("maxchars", String(FMT.subtitle.maxchars))!;
+const Y = flag("y", String(FMT.subtitle.y))!;
+const SIZE = flag("size", String(FMT.subtitle.size))!;
 const DRY = has("dry");
 
 // ── 1. ตรวจเครื่องก่อน ────────────────────────────────────────────────
@@ -277,7 +280,7 @@ for (const s of srcs) {
 }
 ccArgs.push("--maxchars", MAXCHARS, "--y", Y, "--size", SIZE);
 const HL = flag("highlight", "")!;
-if (HL) ccArgs.push("--highlight", HL, "--hl-color", flag("hl-color", "#FFD400")!);
+if (HL) ccArgs.push("--highlight", HL, "--hl-color", flag("hl-color", FMT.highlightColor)!);
 
 // engine=capcut: ลบแทร็กซับเดิมที่เราอ่านมาทำใหม่ ไม่งั้นซับ 2 ชุดซ้อนกันบนจอ
 // (ของเดิมยังอยู่ในไฟล์สำรอง .PRE_CC_BAK · สั่ง --keep-source ถ้าอยากเก็บไว้เทียบ)

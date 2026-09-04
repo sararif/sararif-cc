@@ -22,6 +22,7 @@
  */
 import { readFileSync } from "node:fs";
 import { loadDraft, saveDraft, requireCapCutClosed, videoTracks, textTracks, clipName, die, US } from "./lib/draft";
+import { loadFormat } from "./lib/format";
 
 const argv = process.argv.slice(2);
 const flag = (n: string, d: string) => {
@@ -36,10 +37,12 @@ if (!PROJ || has("help")) {
   process.exit(PROJ ? 0 : 1);
 }
 
-const HEAD = parseFloat(flag("head", "0.20"));
-const TAIL = parseFloat(flag("tail", "0.40"));
-const GAP = parseFloat(flag("gap", "0.60"));
-const MIN = parseFloat(flag("min", "0.30"));
+// ค่าเริ่มต้นมาจากไฟล์ฟอร์แมตของผู้ใช้ (~/.sararif-cc/format.json) ธงในคำสั่งทับได้เสมอ
+const FMT = loadFormat();
+const HEAD = parseFloat(flag("head", String(FMT.silence.head)));
+const TAIL = parseFloat(flag("tail", String(FMT.silence.tail)));
+const GAP = parseFloat(flag("gap", String(FMT.silence.gap)));
+const MIN = parseFloat(flag("min", String(FMT.silence.min)));
 const DRY = has("dry");
 
 const draft = loadDraft(PROJ);
