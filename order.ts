@@ -119,4 +119,5 @@ const res = await saveDraft(PROJ, draft, "PRE_ORDER_BAK");
 console.log(`\n✅ เรียงใหม่ ${sorted.length} คลิป · ยาวรวม ${(cursor / US).toFixed(1)} วิ`);
 console.log(`   ลบซับเดิม ${dropped} กล่อง (ผูกกับลำดับเก่า ใช้ต่อไม่ได้) — อยู่ในไฟล์สำรองแล้ว`);
 console.log(`   sync Timelines ${res.synced} ไฟล์ · สำรอง .PRE_ORDER_BAK`);
-console.log(`\n👉 ต่อด้วย: เปิด CapCut กด Auto captions ใหม่ แล้วรัน  bun cc.ts ${PROJ}\n`);
+console.log(`\n👉 ต่อด้วย: เปิด CapCut → Text → Auto captions (ภาษาไทย) → ปิด CapCut`);
+console.log(`   แล้วค่อย  bun cut.ts ${PROJ}  →  bun cc.ts ${PROJ}\n`);
