@@ -8,7 +8,7 @@
  * ใช้:  bun doctor.ts
  * ออก:  0 = พร้อมใช้ · 1 = ขาดของจำเป็น
  */
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
 
@@ -71,6 +71,23 @@ add({
   detail: ptn.ok ? `v${ptn.out}` : "ไม่พบ",
   fix: "python3 -m pip install pythainlp",
   level: "required",
+});
+
+// ── 4b. คลังคำของผู้ใช้ — คำที่สอนมันไว้เอง ───────────────────────────
+const wordsFile = join(HOME, ".sararif-cc/words.txt");
+const fixFile = join(HOME, ".sararif-cc/fix.txt");
+const countLines = (f: string) =>
+  existsSync(f)
+    ? readFileSync(f, "utf8").split("\n").filter((l) => l.split("#")[0].trim()).length
+    : 0;
+const nWords = countLines(wordsFile), nFix = countLines(fixFile);
+add({
+  name: "คำที่สอนไว้เอง (ชื่อร้าน/ชื่อคน)",
+  ok: true,
+  detail: nWords || nFix ? `${nWords} คำ · แก้คำผิด ${nFix} คู่` : "ยังไม่ได้ใส่ (ไม่ใส่ก็ใช้ได้)",
+  fix: `ใส่ชื่อร้าน/ชื่อคนที่ไม่อยากให้ซับตัดขาดกลาง 1 บรรทัด 1 คำ ที่ ~/.sararif-cc/words.txt
+   และคำที่ถอดเสียงมาผิดบ่อย (รูปแบบ  ผิด = ถูก) ที่ ~/.sararif-cc/fix.txt`,
+  level: "optional",
 });
 
 // ── 5. ffmpeg — แปลงเสียงก่อนถอด ─────────────────────────────────────
