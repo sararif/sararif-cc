@@ -29,6 +29,10 @@ import { Glob } from "bun";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const has = (n: string) => argv.includes(`--${n}`);
+const flag = (n: string) => {
+  const i = argv.indexOf(`--${n}`);
+  return i >= 0 ? argv[i + 1] : null;
+};
 const PROJ = argv.find((a, i) => !a.startsWith("--") && !(i > 0 && argv[i - 1].startsWith("--")));
 
 if (!PROJ || !argv.includes("--l1") || has("help")) {
@@ -40,14 +44,17 @@ if (!existsSync(draftPath(PROJ))) die(`ไม่พบโปรเจกต์ "
 
 await requireCapCutClosed();
 
-// ค่าเริ่มต้นมาจากไฟล์ฟอร์แมตของผู้ใช้ ธงในคำสั่งทับได้เสมอ
-const FMT = loadFormat();
+// ค่าเริ่มต้นมาจากโมเดล (--style) + ไฟล์ฟอร์แมตของผู้ใช้ ธงในคำสั่งทับได้เสมอ
+const FMT = loadFormat(flag("style"));
 const fallback = (name: string, v: string | number) =>
   argv.includes(`--${name}`) ? [] : [`--${name}`, String(v)];
 
+// --style เป็นธงของฝั่ง TS — ห้ามหลุดไปถึง capcut_hook.py (argparse เจอธงแปลกแล้วล้ม)
+const passArgv = argv.filter((a, i) => a !== PROJ && a !== "--style" && argv[i - 1] !== "--style");
+
 const py = join(HERE, "scripts", "capcut_hook.py");
 const proc = Bun.spawnSync([
-  "python3", py, PROJ, ...argv.filter((a) => a !== PROJ),
+  "python3", py, PROJ, ...passArgv,
   ...fallback("y", FMT.hook.y), ...fallback("size", FMT.hook.size),
   ...fallback("dur", FMT.hook.seconds), ...fallback("color", FMT.highlightColor),
 ], { stdout: "inherit", stderr: "inherit" });

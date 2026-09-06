@@ -39,7 +39,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, basename, dirname } from "node:path";
-import { loadFormat, STYLES } from "./lib/format";
+import { loadFormat, STYLES, canvasRatio } from "./lib/format";
 
 const HOME = homedir();
 const HERE = dirname(new URL(import.meta.url).pathname);
@@ -121,6 +121,18 @@ if (!existsSync(DRAFT)) {
     : [];
   die(`ไม่พบโปรเจกต์ "${PROJ}"\n   โปรเจกต์ที่มี: ${available.slice(0, 12).join(" · ") || "(ไม่มีเลย)"}`);
 }
+
+// สัดส่วนจอของโปรเจกต์ vs ที่โมเดลออกแบบมา — เตือนเฉยๆ ไม่ block
+// (โมเดลตั้งขนาด/ตำแหน่งซับกับ hook มาสำหรับ ratio ของมัน ใช้ข้ามได้แต่ควรรู้ตัว)
+try {
+  const projRatio = canvasRatio(JSON.parse(readFileSync(DRAFT, "utf8")));
+  if (projRatio && STYLE.ratio && projRatio !== STYLE.ratio) {
+    console.log(`\n⚠️ โปรเจกต์นี้เป็นจอ ${projRatio} แต่โมเดล "${FMT.style}" ออกแบบมาสำหรับ ${STYLE.ratio}`);
+    console.log(`   ใช้ต่อได้ แต่ขนาด/ตำแหน่งซับกับ hook อาจไม่พอดี — เปิดดูผลแล้วปรับ --size --y เอาได้`);
+    const fit = Object.entries(STYLES).filter(([, s]) => s.ratio === projRatio).map(([k]) => k);
+    if (fit.length) console.log(`   โมเดลที่ออกแบบมาสำหรับ ${projRatio}: ${fit.join(" · ")}`);
+  }
+} catch { /* อ่าน canvas ไม่ได้ก็ข้าม — เรื่องนี้ห้ามทำให้งานล้ม */ }
 
 if (NEEDS_CLIP) {
   for (const s of SOURCES) {

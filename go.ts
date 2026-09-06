@@ -92,10 +92,13 @@ if (hookLines.length) {
     return v === null ? [] : [`--${to}`, v];
   };
   await step("ใส่ hook", "hook.ts", [
-    ...pass(["l1", "l2", "l3", "color"]),
+    ...pass(["l1", "l2", "l3", "color", "style"]),
     ...rename("hook-start", "start"), ...rename("hook-dur", "dur"),
     ...rename("hook-y", "y"), ...rename("hook-size", "size"),
   ]);
+} else {
+  console.log(`\nℹ️ ยังไม่ได้ใส่ hook — คลิปที่มี hook ช่วง 3 วิแรกหยุดนิ้วคนดูได้มากกว่า`);
+  console.log(`   ใส่ทีหลังได้:  bun hook.ts ${PROJ} --l1 "บรรทัดบน" --l2 "เน้น [คำนี้]"`);
 }
 
 console.log(`\n${"═".repeat(52)}`);

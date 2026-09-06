@@ -13,26 +13,38 @@ import { join } from "node:path";
 export const USER_DIR = join(homedir(), ".sararif-cc");
 export const FORMAT_FILE = join(USER_DIR, "format.json");
 
-/** สไตล์ซับสำเร็จรูป — แกะจาก framework ที่ผมใช้จริงกับช่องตัวเอง
- *  เลือกด้วย --style หรือใส่ "style" ในไฟล์ format.json */
+/** 3 โมเดลสำเร็จรูป — แกะจากสูตรที่ผมเทรนกับช่องตัวเองจริง
+ *  แต่ละโมเดลตั้งครบชุด: ซับ + hook + สัดส่วนจอ (ratio) + ความยาวคลิปเป้าหมาย
+ *  เลือกด้วย --style หรือใส่ "style" ในไฟล์ format.json
+ *  ค่าที่ผู้ใช้เขียนเองในไฟล์ ชนะค่าของโมเดลเสมอ */
 export const STYLES: Record<string, {
   label: string; desc: string; mode: "text" | "karaoke" | "genz";
   maxchars: number; size: number;
+  /** สัดส่วนจอที่โมเดลนี้ออกแบบมา — ไม่ตรงกับโปรเจกต์จะเตือน (ไม่ block) */
+  ratio: "9:16" | "16:9";
+  hook: { y: number; size: number; seconds: number };
+  clipSeconds: { min: number; max: number };
 }> = {
   text: {
-    label: "ข้อความ",
-    desc: "วลีสั้นขาว อ่านง่าย — ใช้ได้กับทุกคลิป ถ้าไม่รู้จะเลือกอะไรใช้อันนี้",
+    label: "เล่าเรื่อง",
+    desc: "วลีสั้นขาว อ่านง่าย · hook 2-3 บรรทัดบนจอ — คลิปเล่าเรื่อง/diary แนวตั้ง ถ้าไม่รู้จะเลือกอะไรใช้อันนี้",
     mode: "text", maxchars: 16, size: 15,
+    ratio: "9:16", hook: { y: 0.55, size: 22, seconds: 3 },
+    clipSeconds: { min: 25, max: 30 },
   },
   karaoke: {
-    label: "คาราโอเกะ",
-    desc: "ขึ้นทีละคำตามจังหวะพูด ตาคนดูวิ่งตลอดแม้ภาพจะค้าง — คลิปสั้นสายความรู้/สอน",
+    label: "สอน/บรรยาย",
+    desc: "ขึ้นทีละคำตามจังหวะพูด ตาคนดูวิ่งตลอดแม้ภาพจะค้าง — คลิปสอน/รีวิวแนวนอน ยาวขึ้นได้",
     mode: "karaoke", maxchars: 16, size: 18,
+    ratio: "16:9", hook: { y: 0.7, size: 16, seconds: 2 },
+    clipSeconds: { min: 45, max: 90 },
   },
   genz: {
-    label: "GenZ",
-    desc: "ซับใหญ่เต็มจอ วลีไหนมีคำเด็ดเหลืองทั้งวลี — คลิปไวรัล/ทริป/ไลฟ์สไตล์",
+    label: "ไวรัล",
+    desc: "ซับใหญ่เต็มจอ วลีไหนมีคำเด็ดเหลืองทั้งวลี · hook ใหญ่กลางจอ — คลิปไวรัล/ทริป/ไลฟ์สไตล์ สั้นและแรง",
     mode: "genz", maxchars: 11, size: 30,
+    ratio: "9:16", hook: { y: 0.35, size: 26, seconds: 2 },
+    clipSeconds: { min: 15, max: 25 },
   },
 };
 
@@ -102,8 +114,9 @@ export function loadFormat(styleFlag?: string | null): Format {
   return styleFlag ? applyStyle(merged as Format, styleFlag) : (merged as Format);
 }
 
-/** เอาสไตล์มาทับค่าซับ — ใช้เมื่อผู้ใช้ระบุ --style หรือตั้ง "style" ไว้ในไฟล์
- *  ผู้ใช้ที่ตั้ง subtitle.size เองไว้แล้ว ยังชนะสไตล์ได้ผ่านธงในคำสั่ง */
+/** เอาโมเดลมาทับค่า ซับ + hook + ความยาวคลิป — ใช้เมื่อผู้ใช้ระบุ --style หรือตั้ง "style" ไว้ในไฟล์
+ *  ผู้ใช้ที่ตั้งค่าเองไว้ในไฟล์ (เช่น subtitle.size, hook.y) ยังชนะโมเดลได้เสมอ
+ *  เพราะ loadFormat เอาค่าในไฟล์มาทับหลังจากวางโมเดลเป็นฐานแล้ว */
 export function applyStyle(f: Format, styleName?: string | null): Format {
   const name = (styleName || f.style || "text") as string;
   const s = STYLES[name];
@@ -112,7 +125,27 @@ export function applyStyle(f: Format, styleName?: string | null): Format {
     console.error(`   ใช้สไตล์ text แทน\n`);
     return { ...f, style: "text" };
   }
-  return { ...f, style: name, subtitle: { ...f.subtitle, maxchars: s.maxchars, size: s.size } };
+  return {
+    ...f,
+    style: name,
+    subtitle: { ...f.subtitle, maxchars: s.maxchars, size: s.size },
+    hook: { ...f.hook, ...s.hook },
+    clipSeconds: { ...s.clipSeconds },
+  };
+}
+
+/** สัดส่วนจอของโปรเจกต์ CapCut อ่านจาก canvas_config — ratio ในไฟล์มักเป็น "original"
+ *  จึงคำนวณจาก width/height เอง · คืน null ถ้าอ่านไม่ได้ (อย่า block งานเพราะเรื่องนี้) */
+export function canvasRatio(draft: any): "9:16" | "16:9" | string | null {
+  const c = draft?.canvas_config;
+  const w = Number(c?.width), h = Number(c?.height);
+  if (!w || !h) return null;
+  const r = w / h;
+  if (Math.abs(r - 9 / 16) < 0.02) return "9:16";
+  if (Math.abs(r - 16 / 9) < 0.05) return "16:9";
+  if (Math.abs(r - 1) < 0.02) return "1:1";
+  if (Math.abs(r - 4 / 5) < 0.02) return "4:5";
+  return `${w}x${h}`;
 }
 
 /** ค่าที่จะใช้จริง: ธงในคำสั่งมาก่อน แล้วค่อยไฟล์ตั้งค่า */
