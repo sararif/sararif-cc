@@ -21,6 +21,13 @@ segment.py — แบ่งวลีซับไทย ต่อยอดจา�
 """
 import sys, json, argparse, pathlib
 
+# Windows console/pipe ใช้ code page ท้องถิ่น — พิมพ์ไทยแล้วพัง ต้องบังคับ UTF-8 ก่อน
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 # ใช้ตัวตัดคำ + FIX dict ของระบบเดิม (pythainlp newmm)
 # หา make_subs.py ได้ทั้ง 2 โครง: ชุดที่แพ็กแจก (อยู่ข้างๆ กัน) และในโปรเจกต์ต้นทาง
 HERE = pathlib.Path(__file__).resolve().parent
@@ -181,10 +188,10 @@ def main():
     else:
         breaks = []
         if a.breaks and pathlib.Path(a.breaks).exists():
-            breaks = [float(x) for x in pathlib.Path(a.breaks).read_text().split() if x.strip()]
+            breaks = [float(x) for x in pathlib.Path(a.breaks).read_text(encoding="utf-8").split() if x.strip()]
         scenes = []
         if a.scenes and pathlib.Path(a.scenes).exists():
-            scenes = [float(x) for x in pathlib.Path(a.scenes).read_text().split() if x.strip()]
+            scenes = [float(x) for x in pathlib.Path(a.scenes).read_text(encoding="utf-8").split() if x.strip()]
         lines = group_v2(words, a.maxchars, a.gap, breaks, scenes)
 
     for st, en, tx in lines:

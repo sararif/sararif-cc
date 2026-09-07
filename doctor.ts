@@ -5,15 +5,20 @@
  * ทำไมต้องมี: ถ้าแจกเครื่องมือให้คนอื่นแล้วเขารันไม่ได้ เขาจะทักมาถามทีละคน
  * ตัวนี้ตอบแทนว่า "ขาดอะไร และแก้ยังไง" — เป็นด่านแรกเสมอ
  *
+ * รองรับ: macOS (ทดสอบบนเครื่องจริงแล้ว) · Windows (เบต้า — path/คำสั่งถูกต้องตามสเปก
+ * ของ CapCut ฝั่ง Windows แต่ยังรอผลจากเครื่องจริง เจออะไรแปลกให้แจ้งกลับ)
+ *
  * ใช้:  bun doctor.ts
  * ออก:  0 = พร้อมใช้ · 1 = ขาดของจำเป็น
  */
 import { existsSync, readFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { Glob } from "bun";
+import { DRAFT_ROOT, listProjects, findCapCutApp, fontCacheDirs, pythonCmd, PY_ENV, IS_WIN } from "./lib/platform";
 
 const HOME = homedir();
-const DRAFT_ROOT = join(HOME, "Movies/CapCut/User Data/Projects/com.lveditor.draft");
 
 type Level = "required" | "optional";
 type Check = { name: string; ok: boolean; detail: string; fix?: string; level: Level };
@@ -21,7 +26,7 @@ const checks: Check[] = [];
 
 const run = async (cmd: string[]): Promise<{ ok: boolean; out: string }> => {
   try {
-    const p = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" });
+    const p = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe", env: PY_ENV });
     const out = await new Response(p.stdout).text();
     return { ok: (await p.exited) === 0, out: out.trim() };
   } catch {
@@ -32,14 +37,14 @@ const run = async (cmd: string[]): Promise<{ ok: boolean; out: string }> => {
 const add = (c: Check) => checks.push(c);
 
 // ── 1. ระบบปฏิบัติการ ────────────────────────────────────────────────
-// path ของ CapCut และวิธีเช็คโปรเซสเป็นของ macOS ล้วน — Windows ยังใช้ไม่ได้
-const isMac = platform() === "darwin";
+const os = platform();
+const isMac = os === "darwin";
+const osOk = isMac || IS_WIN;
 add({
   name: "ระบบปฏิบัติการ",
-  ok: isMac,
-  detail: isMac ? "macOS ✓" : `${platform()} — ยังไม่รองรับ`,
-  fix: "ตอนนี้รองรับเฉพาะ Mac เพราะ path ของ CapCut และวิธีปิดโปรแกรมเป็นของ macOS\n" +
-       "   ถ้าใช้ Windows: ให้ Claude ช่วยแก้ path ใน capcut_cc.py เป็น %LOCALAPPDATA% และเปลี่ยน pgrep เป็น tasklist",
+  ok: osOk,
+  detail: isMac ? "macOS ✓" : IS_WIN ? "Windows ✓ (เบต้า — เจออะไรแปลกแจ้งกลับได้เลย)" : `${os} — ยังไม่รองรับ`,
+  fix: "รองรับ macOS กับ Windows เท่านั้น (Linux ยังไม่มี CapCut เวอร์ชันคอม)",
   level: "required",
 });
 
@@ -49,27 +54,34 @@ add({
   name: "Bun",
   ok: bunV.ok,
   detail: bunV.ok ? `v${bunV.out}` : "ไม่พบ",
-  fix: 'curl -fsSL https://bun.sh/install | bash',
+  fix: IS_WIN
+    ? 'เปิด PowerShell แล้วรัน:  powershell -c "irm bun.sh/install.ps1 | iex"\n   (ต้องเป็น Windows 10 เวอร์ชัน 1809 ขึ้นไป · เสร็จแล้วปิด-เปิด terminal ใหม่)'
+    : 'curl -fsSL https://bun.sh/install | bash',
   level: "required",
 });
 
 // ── 3. Python 3 ──────────────────────────────────────────────────────
-const py = await run(["python3", "--version"]);
+// Windows: "python" อาจเป็นตัวปลอมของ Microsoft Store — pythonCmd() เช็คให้แล้ว
+const PY = pythonCmd();
+const py = await run([...PY, "--version"]);
 add({
   name: "Python 3",
   ok: py.ok,
-  detail: py.ok ? py.out : "ไม่พบ",
-  fix: "Mac มีมาให้อยู่แล้ว ถ้าไม่มีให้ลง Xcode Command Line Tools: xcode-select --install",
+  detail: py.ok ? `${py.out} (คำสั่ง: ${PY.join(" ")})` : "ไม่พบ",
+  fix: IS_WIN
+    ? "โหลดจาก python.org/downloads แล้วติดตั้ง — ✅ ต้องติ๊ก \"Add python.exe to PATH\" ตอนติดตั้งด้วย\n" +
+      "   (หรือ:  winget install Python.Python.3.12  แล้วปิด-เปิด terminal ใหม่)"
+    : "Mac มีมาให้อยู่แล้ว ถ้าไม่มีให้ลง Xcode Command Line Tools: xcode-select --install",
   level: "required",
 });
 
 // ── 4. pythainlp — ตัวตัดคำไทย หัวใจของการแบ่งวลี ────────────────────
-const ptn = await run(["python3", "-c", "import pythainlp;print(pythainlp.__version__)"]);
+const ptn = await run([...PY, "-c", "import pythainlp;print(pythainlp.__version__)"]);
 add({
   name: "pythainlp (ตัดคำไทย)",
   ok: ptn.ok,
   detail: ptn.ok ? `v${ptn.out}` : "ไม่พบ",
-  fix: "python3 -m pip install pythainlp",
+  fix: `${PY.join(" ")} -m pip install pythainlp`,
   level: "required",
 });
 
@@ -90,49 +102,61 @@ add({
   level: "optional",
 });
 
-// ── 5. ffmpeg — แปลงเสียงก่อนถอด ─────────────────────────────────────
+// ── 5. ffmpeg — ใช้เฉพาะตอนถอดเสียงใหม่ด้วย scribe/whisper ────────────
+// ทางฟรี (--engine capcut = อ่านซับที่ CapCut ถอดไว้แล้ว) ไม่ต้องมี ffmpeg เลย
 const ff = await run(["ffmpeg", "-version"]);
 add({
-  name: "ffmpeg",
+  name: "ffmpeg (เฉพาะทาง scribe/whisper)",
   ok: ff.ok,
-  detail: ff.ok ? ff.out.split("\n")[0].slice(0, 40) : "ไม่พบ",
-  fix: "brew install ffmpeg  (ถ้ายังไม่มี Homebrew: https://brew.sh)",
-  level: "required",
+  detail: ff.ok ? ff.out.split("\n")[0].slice(0, 40) : "ไม่พบ (ทางฟรีไม่ต้องใช้)",
+  fix: IS_WIN
+    ? "winget install Gyan.FFmpeg   (เสร็จแล้วปิด-เปิด terminal ใหม่)"
+    : "brew install ffmpeg  (ถ้ายังไม่มี Homebrew: https://brew.sh)",
+  level: "optional",
 });
 
 // ── 6. CapCut ────────────────────────────────────────────────────────
-const capcutApp = ["/Applications/CapCut.app", join(HOME, "Applications/CapCut.app")].find(existsSync);
+const capcutApp = findCapCutApp();
 add({
   name: "CapCut (เวอร์ชันคอม)",
-  ok: !!capcutApp,
-  detail: capcutApp ?? "ไม่พบใน /Applications",
-  fix: "โหลดจาก capcut.com แล้วเปิดสร้างโปรเจกต์ 1 ครั้งก่อน",
+  ok: !!capcutApp || existsSync(DRAFT_ROOT),
+  detail: capcutApp ?? (existsSync(DRAFT_ROOT) ? "เจอโฟลเดอร์โปรเจกต์ (โปรแกรมคงติดตั้งแบบไม่มาตรฐาน)" : IS_WIN ? "ไม่พบใน %LOCALAPPDATA%\\CapCut" : "ไม่พบใน /Applications"),
+  fix: "โหลดจาก capcut.com แล้วเปิดสร้างโปรเจกต์ 1 ครั้งก่อน" +
+       (IS_WIN ? "\n   ถ้าติดตั้งจาก Microsoft Store แล้วหาโฟลเดอร์โปรเจกต์ไม่เจอ: หาโฟลเดอร์ชื่อ com.lveditor.draft\n" +
+                 "   แล้วตั้งค่า SARARIF_CC_DRAFT_ROOT ชี้ไปที่นั่น (ให้ AI ช่วยหาได้)" : ""),
   level: "required",
 });
 
 // ── 7. โฟลเดอร์โปรเจกต์ CapCut ───────────────────────────────────────
 // ต้องเคยเปิด CapCut สร้างโปรเจกต์อย่างน้อย 1 ครั้ง โฟลเดอร์ถึงจะถูกสร้าง
 const draftOk = existsSync(DRAFT_ROOT);
-let projCount = 0;
-if (draftOk) {
-  const ls = await run(["ls", DRAFT_ROOT]);
-  projCount = ls.out.split("\n").filter((x) => x.trim() && !x.startsWith(".")).length;
-}
+const projCount = listProjects().length;
 add({
   name: "โฟลเดอร์โปรเจกต์ CapCut",
   ok: draftOk,
-  detail: draftOk ? `พบ ${projCount} โปรเจกต์` : "ยังไม่มี",
-  fix: "เปิด CapCut แล้วสร้างโปรเจกต์ใหม่ 1 อันก่อน โฟลเดอร์จะถูกสร้างให้เอง",
+  detail: draftOk ? `พบ ${projCount} โปรเจกต์` : `ยังไม่มี (${DRAFT_ROOT.replace(HOME, "~")})`,
+  fix: "เปิด CapCut แล้วสร้างโปรเจกต์ใหม่ 1 อันก่อน โฟลเดอร์จะถูกสร้างให้เอง" +
+       (IS_WIN ? "\n   ยังไม่เจออีก: ตั้ง SARARIF_CC_DRAFT_ROOT ชี้ไปโฟลเดอร์ com.lveditor.draft ของเครื่องนั้น" : ""),
   level: "required",
 });
 
 // ── 8. ฟอนต์ที่สคริปต์ใช้ (ไม่มีก็ยังรันได้ แต่ซับจะเป็นฟอนต์ default) ──
-// ⚠️ path นี้เป็น cache ของ CapCut แต่ละเครื่อง — ของคนอื่นจะไม่ตรงกัน
-const FONT = join(HOME, "Library/Containers/com.lemon.lvoverseas/Data/Movies/CapCut/User Data/Cache/effect/7545362452553174273/f413de54c1c5ef9baabd5a5188b9dd4c/font.ttf");
+// path ฟอนต์เป็น cache ของ CapCut แต่ละเครื่อง — ค้นด้วย resource id ของ "มหานคร"
+const MAHA_RES = "7545362452553174273";
+let fontAt: string | undefined;
+for (const cacheDir of fontCacheDirs()) {
+  const resDir = join(cacheDir, MAHA_RES);
+  if (!existsSync(resDir)) continue;
+  for await (const rel of new Glob("*/font.ttf").scan(resDir)) {
+    fontAt = join(resDir, rel);
+    break;
+  }
+  if (fontAt) break;
+}
 add({
   name: 'ฟอนต์ "มหานคร"',
-  ok: existsSync(FONT),
-  detail: existsSync(FONT) ? "พบ" : "ไม่พบบนเครื่องนี้",
+  ok: !!fontAt,
+  detail: fontAt ? "พบ" : "ไม่พบบนเครื่องนี้",
   fix: "เปิด CapCut → ใส่ข้อความ → เลือกฟอนต์ มหานคร 1 ครั้ง (CapCut จะโหลดมาเก็บไว้)\n" +
        "   ถ้าไม่ทำ ซับจะยังขึ้นแต่ใช้ฟอนต์ default",
   level: "optional",
@@ -140,7 +164,7 @@ add({
 
 // ── 9. ถอดเสียง — ต้องมีอย่างน้อย 1 ทาง ──────────────────────────────
 // key อาจอยู่ได้หลายที่ — ตรวจให้ครบ ไม่งั้นคนที่มีอยู่แล้วจะโดนบอกว่าไม่มี
-const HERE = new URL(".", import.meta.url).pathname;
+const HERE = dirname(fileURLToPath(import.meta.url));
 const envCandidates = [
   join(HOME, ".sararif-cc.env"),
   join(HERE, ".env"),
@@ -165,14 +189,15 @@ add({
   level: "optional",
 });
 
+const whisperBin = IS_WIN ? "whisper-cli.exe" : "whisper-cli";
 const whisperCandidates = [
   process.env.WHISPER_CLI ?? "",
-  join(HERE, "whispercpp/build/bin/whisper-cli"),
-  join(HERE, "../../whispercpp/build/bin/whisper-cli"),
-  "/opt/homebrew/bin/whisper-cli",   // brew: Apple Silicon
-  "/usr/local/bin/whisper-cli",      // brew: Intel Mac
-  join(HOME, "whisper.cpp/build/bin/whisper-cli"),
-  join(HOME, "whispercpp/build/bin/whisper-cli"),
+  join(HERE, "whispercpp/build/bin", whisperBin),
+  join(HERE, "../../whispercpp/build/bin", whisperBin),
+  ...(IS_WIN
+    ? [join(HOME, "whisper.cpp", whisperBin), join(HOME, "whispercpp", whisperBin)]
+    : ["/opt/homebrew/bin/whisper-cli", "/usr/local/bin/whisper-cli",
+       join(HOME, "whisper.cpp/build/bin/whisper-cli"), join(HOME, "whispercpp/build/bin/whisper-cli")]),
 ].filter(Boolean);
 const whisperAt = whisperCandidates.find(existsSync);
 
@@ -185,17 +210,19 @@ const modelCandidates = [
 ].filter(Boolean);
 const modelAt = modelCandidates.find(existsSync);
 
+const whisperInstallFix = IS_WIN
+  ? "1) โหลดตัวโปรแกรมสำเร็จรูป (zip) จาก github.com/ggml-org/whisper.cpp/releases (ไฟล์ -bin-x64)\n" +
+    "      แตก zip แล้วตั้ง WHISPER_CLI ชี้ไปที่ whisper-cli.exe\n   "
+  : "1) ติดตั้งโปรแกรม:  brew install whisper-cpp\n   ";
 add({
   name: "whisper.cpp (ถอดเสียงฟรีในเครื่อง)",
   ok: !!whisperAt && !!modelAt,
   detail: !whisperAt ? "ไม่พบตัวโปรแกรม"
         : !modelAt ? `เจอโปรแกรมแล้ว (${whisperAt.replace(HOME, "~")}) แต่ยังไม่มีไฟล์โมเดล`
         : `${whisperAt.replace(HOME, "~")} + โมเดลครบ`,
-  fix: (!whisperAt ? "1) ติดตั้งโปรแกรม:  brew install whisper-cpp\n   " : "") +
-       (!modelAt ? `${whisperAt ? "" : "2) "}โหลดโมเดล (~1.5GB):\n` +
-         `      mkdir -p ~/.sararif-cc/models\n` +
-         `      curl -L -o ~/.sararif-cc/models/${modelName} \\\n` +
-         `        https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}\n   ` : "") +
+  fix: (!whisperAt ? whisperInstallFix : "") +
+       (!modelAt ? `${whisperAt ? "" : "2) "}โหลดโมเดล (~1.5GB) มาไว้ที่ ~/.sararif-cc/models/${modelName}\n` +
+         `      จาก https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}\n   ` : "") +
        "หมายเหตุ: บางเครื่องต้องใส่ธง -ng ปิด GPU ไม่งั้นได้ข้อความมั่ว (สคริปต์ใส่ให้แล้ว)",
   level: "optional",
 });
@@ -239,15 +266,20 @@ if (missingReq.length || noStt) {
     console.log("      ติดตั้ง CapCut เวอร์ชันคอมจาก capcut.com แล้วใช้ Auto captions ของมัน");
     console.log("      จากนั้น:  bun cc.ts <โปรเจกต์> --engine capcut\n");
     console.log("    ทาง B · เสียเงินนิดเดียว ~฿1 ต่อคลิป 3 นาที · เวลาแม่นระดับคำ");
-    console.log(`      echo 'ELEVENLABS_API_KEY=คีย์ของคุณ' > ${join(HOME, ".sararif-cc.env").replace(HOME, "~")}`);
+    console.log(`      สร้างไฟล์ ${join(HOME, ".sararif-cc.env").replace(HOME, "~")} ใส่บรรทัด ELEVENLABS_API_KEY=คีย์ของคุณ`);
     console.log("      สมัคร/เอาคีย์ที่ https://elevenlabs.io\n");
-    const macVer = Number((Bun.spawnSync(["sw_vers", "-productVersion"]).stdout.toString().split(".")[0]) || 0);
+    const macVer = isMac ? Number((Bun.spawnSync(["sw_vers", "-productVersion"]).stdout.toString().split(".")[0]) || 0) : 0;
     console.log(`    ทาง C · ฟรี แต่เวลาเพี้ยน ใช้เลือกจุดตัดต่อไม่ได้${
-      macVer && macVer < 14 ? ` · ⚠️ เครื่องนี้ macOS ${macVer} ต้อง compile เอง 20–40 นาที` : ""}`);
-    console.log("      brew install whisper-cpp");
-    console.log("      mkdir -p ~/.sararif-cc/models");
-    console.log(`      curl -L -o ~/.sararif-cc/models/${modelName} \\`);
-    console.log(`        https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}\n`);
+      isMac && macVer && macVer < 14 ? ` · ⚠️ เครื่องนี้ macOS ${macVer} ต้อง compile เอง 20–40 นาที` : ""}`);
+    if (IS_WIN) {
+      console.log("      โหลด whisper.cpp สำเร็จรูปจาก github.com/ggml-org/whisper.cpp/releases (ไฟล์ -bin-x64)");
+      console.log(`      และโมเดลจาก https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}\n`);
+    } else {
+      console.log("      brew install whisper-cpp");
+      console.log("      mkdir -p ~/.sararif-cc/models");
+      console.log(`      curl -L -o ~/.sararif-cc/models/${modelName} \\`);
+      console.log(`        https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${modelName}\n`);
+    }
   }
   process.exit(1);
 }

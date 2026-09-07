@@ -15,6 +15,9 @@ import json, sys, argparse, uuid, pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from capcut_cc import resolve_font, text_material, US   # ใช้ตัวสร้างข้อความตัวเดียวกับซับ
+from capcut_paths import draft_file, force_utf8_stdio
+
+force_utf8_stdio()
 
 uid = lambda: str(uuid.uuid4()).upper()
 
@@ -49,11 +52,11 @@ def main():
     if keywords:
         print(f"🟡 เน้นสี {a.color}: {' · '.join(keywords)}")
 
-    DRAFT = pathlib.Path.home() / f"Movies/CapCut/User Data/Projects/com.lveditor.draft/{a.proj}/draft_info.json"
+    DRAFT = draft_file(a.proj)   # Mac: draft_info.json · Windows: draft_content.json
     if not DRAFT.exists():
         raise SystemExit(f"❌ ไม่พบโปรเจกต์ \"{a.proj}\"")
-    draft = json.loads(DRAFT.read_text())
-    (DRAFT.parent / "draft_info.json.PRE_HOOK_BAK").write_text(json.dumps(draft))
+    draft = json.loads(DRAFT.read_text(encoding="utf-8"))
+    (DRAFT.parent / f"{DRAFT.name}.PRE_HOOK_BAK").write_text(json.dumps(draft), encoding="utf-8")
 
     vtpl = draft["tracks"][0]["segments"][0]
     m = text_material(txt, a.size, a.stroke, "#000000", FONT, keywords, a.color)
@@ -72,7 +75,7 @@ def main():
 
     draft["tracks"].append({"id": uid(), "type": "text", "segments": [s],
                             "flag": 0, "attribute": 0, "name": "", "is_default_name": True})
-    DRAFT.write_text(json.dumps(draft, ensure_ascii=False))
+    DRAFT.write_text(json.dumps(draft, ensure_ascii=False), encoding="utf-8")
     for l in lines:
         print(f"   {l}")
     print(f"✅ ใส่ hook {a.start:.1f}–{a.start + a.dur:.1f} วิ (y={a.y}, ขนาด {a.size}) — สำรอง .PRE_HOOK_BAK")

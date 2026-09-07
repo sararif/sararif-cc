@@ -39,11 +39,13 @@
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, basename, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadFormat, STYLES, canvasRatio } from "./lib/format";
+import { DRAFT_ROOT, DRAFT_NAMES, draftFileName, listProjects, capcutState, askCapCutToQuit, QUIT_HINT, pythonCmd, PY_ENV } from "./lib/platform";
 
 const HOME = homedir();
-const HERE = dirname(new URL(import.meta.url).pathname);
-const DRAFT_ROOT = join(HOME, "Movies/CapCut/User Data/Projects/com.lveditor.draft");
+const HERE = dirname(fileURLToPath(import.meta.url));
+const PY = pythonCmd();
 
 // สคริปต์ที่ต้องใช้ (stt_*.py, capcut_cc.py) — ใช้ชุดที่แพ็กมาในโฟลเดอร์นี้ก่อน
 // ถ้าไม่มี ค่อยถอยไปหาในโปรเจกต์ต้นทาง (สำหรับตอนพัฒนา)
@@ -60,6 +62,7 @@ const die = (msg: string): never => {
 const sh = async (cmd: string[], opts: { cwd?: string; quiet?: boolean } = {}) => {
   const p = Bun.spawn(cmd, {
     cwd: opts.cwd,
+    env: PY_ENV,   // บังคับ Python เป็น UTF-8 — Windows ค่าเริ่มต้นเป็น cp1252 พังกับภาษาไทย
     stdout: opts.quiet ? "pipe" : "inherit",
     stderr: opts.quiet ? "pipe" : "inherit",
   });
@@ -114,11 +117,10 @@ console.log("   ✅ ผ่าน\n");
 
 // ── 2. ตรวจโปรเจกต์ ───────────────────────────────────────────────────
 const DRAFT_DIR = join(DRAFT_ROOT, PROJ);
-const DRAFT = join(DRAFT_DIR, "draft_info.json");
+const DRAFT = join(DRAFT_DIR, draftFileName(DRAFT_DIR));
+const DRAFT_NAME = basename(DRAFT);
 if (!existsSync(DRAFT)) {
-  const available = existsSync(DRAFT_ROOT)
-    ? (await sh(["ls", DRAFT_ROOT], { quiet: true })).out.split("\n").filter((x) => x && !x.startsWith(".") && !x.endsWith(".json"))
-    : [];
+  const available = listProjects();
   die(`ไม่พบโปรเจกต์ "${PROJ}"\n   โปรเจกต์ที่มี: ${available.slice(0, 12).join(" · ") || "(ไม่มีเลย)"}`);
 }
 
@@ -203,7 +205,7 @@ const wordsFor = (f: string) => join(WORK, `${basename(f).replace(/\.[^.]+$/, ""
 if (engine === "capcut") {
   srcs.push({ file: PROJ, offset: 0 });
   const track = flag("track");
-  const args = ["python3", sttPath, PROJ, "--out", WORK, ...(track ? ["--track", track] : [])];
+  const args = [...PY, sttPath, PROJ, "--out", WORK, ...(track ? ["--track", track] : [])];
   const r = await sh(args);
   if (r.code !== 0) die("อ่านซับจาก CapCut ไม่สำเร็จ");
   if (!existsSync(wordsFor(PROJ))) die(`อ่านเสร็จแต่ไม่พบไฟล์ผลลัพธ์: ${wordsFor(PROJ)}`);
@@ -214,7 +216,7 @@ for (const s of engine === "capcut" ? [] : srcs) {
     console.log(`   ⏭️  ${basename(s.file)} ถอดไว้แล้ว ใช้ของเดิม`);
     continue;
   }
-  const r = await sh(["python3", sttPath, s.file, "--out", WORK]);
+  const r = await sh([...PY, sttPath, s.file, "--out", WORK]);
   if (r.code !== 0) die(`ถอดเสียงล้มเหลว: ${basename(s.file)}`);
   if (!existsSync(wordsFor(s.file))) die(`ถอดเสียงเสร็จแต่ไม่พบไฟล์ผลลัพธ์: ${wordsFor(s.file)}`);
 }
@@ -225,7 +227,7 @@ const breaksFor = (f: string) => join(WORK, `${basename(f).replace(/\.[^.]+$/, "
 const scenesFor = (f: string) => join(WORK, `${basename(f).replace(/\.[^.]+$/, "")}.scenes.txt`);
 const segmentOne = async (s: Src) => {
   const r = await sh(
-    ["python3", join(HERE, "segment.py"), wordsFor(s.file), "--maxchars", MAXCHARS, "--offset", String(s.offset),
+    [...PY, join(HERE, "segment.py"), wordsFor(s.file), "--maxchars", MAXCHARS, "--offset", String(s.offset),
       ...(existsSync(breaksFor(s.file)) ? ["--breaks", breaksFor(s.file)] : []),
       ...(existsSync(scenesFor(s.file)) ? ["--scenes", scenesFor(s.file)] : [])],
     { quiet: true },
@@ -261,34 +263,25 @@ if (DRY) {
 
 // ── 7. ปิด CapCut ก่อนแตะไฟล์ (fail-closed) ───────────────────────────
 // CapCut เก็บ draft ทั้งก้อนไว้ในหน่วยความจำ แล้วเขียนทับตอนปิด
-// ถ้าเขียนไฟล์ตอนมันเปิดอยู่ = งานหายเงียบๆ ตอนผู้ใช้กด Cmd+Q (เจอจริง 2 ส.ค. 69)
-const capcutState = async (): Promise<"running" | "stopped" | "unknown"> => {
-  const pg = await sh(["pgrep", "-x", "CapCut"], { quiet: true });
-  if (pg.code === 0 && pg.out) return "running";
-  if (/cannot get process list|operation not permitted/i.test(pg.err)) return "unknown";
-  const ps = await sh(["ps", "-Ao", "command"], { quiet: true });
-  if (ps.code !== 0) return "unknown";
-  return /MacOS\/CapCut(\s|$)/m.test(ps.out) ? "running" : "stopped";
-};
-
+// ถ้าเขียนไฟล์ตอนมันเปิดอยู่ = งานหายเงียบๆ ตอนผู้ใช้ปิดโปรแกรม (เจอจริง 2 ส.ค. 69)
 let state = await capcutState();
 if (state === "running") {
   console.log("\n🚪 CapCut เปิดอยู่ — ปิดให้ก่อน (ไม่งั้นงานจะถูกเขียนทับหาย)");
-  await sh(["osascript", "-e", 'quit app "CapCut"'], { quiet: true });
+  await askCapCutToQuit();
   for (let i = 0; i < 15 && (await capcutState()) === "running"; i++) await Bun.sleep(400);
   state = await capcutState();
 }
 if (state !== "stopped") {
   die(
     state === "unknown"
-      ? "เช็คไม่ได้ว่า CapCut เปิดอยู่ไหม — ไม่ยอมเขียนไฟล์ (กันงานหาย)\n   ปิด CapCut เองแล้วรันใหม่"
-      : "ปิด CapCut ไม่สำเร็จ — ปิดเองแล้วรันใหม่",
+      ? `เช็คไม่ได้ว่า CapCut เปิดอยู่ไหม — ไม่ยอมเขียนไฟล์ (กันงานหาย)\n   ${QUIT_HINT} แล้วรันใหม่`
+      : `ปิด CapCut ไม่สำเร็จ — ${QUIT_HINT} แล้วรันใหม่`,
   );
 }
 
 // ── 8. ใส่ซับลง draft ─────────────────────────────────────────────────
 const before = statSync(DRAFT).size;
-const ccArgs = ["python3", join(SCRIPTS, "capcut_cc.py"), PROJ];
+const ccArgs = [...PY, join(SCRIPTS, "capcut_cc.py"), PROJ];
 
 // ส่งวลีที่แบ่งไว้เองเข้าไป (--phrases) แทนที่จะให้ capcut_cc.py ไปเรียก group() เอง
 // เพื่อให้ได้กฎ "ห้ามคำเชื่อมค้างท้ายบรรทัด" ที่ segment.py เพิ่มมา
@@ -311,15 +304,17 @@ if (engine === "capcut" && !has("keep-source")) {
 
 console.log("\n✍️  ใส่ซับลง CapCut…\n");
 const inj = await sh(ccArgs);
-if (inj.code !== 0) die("ใส่ซับล้มเหลว — ไฟล์สำรองอยู่ที่ draft_info.json.PRE_CC_BAK");
+if (inj.code !== 0) die(`ใส่ซับล้มเหลว — ไฟล์สำรองอยู่ที่ ${DRAFT_NAME}.PRE_CC_BAK`);
 
 // ── 9. sync สำเนาใน Timelines/ ────────────────────────────────────────
 // CapCut อ่านจากสำเนาในนี้ — เขียนแค่ไฟล์รากคือของหายเงียบๆ (เจอจริง 17 ส.ค. 69)
 const draftText = readFileSync(DRAFT, "utf8");
 let synced = 0;
-for await (const rel of new Bun.Glob("Timelines/*/draft_info.json").scan(DRAFT_DIR)) {
-  await Bun.write(join(DRAFT_DIR, rel), draftText);
-  synced++;
+for (const name of DRAFT_NAMES) {
+  for await (const rel of new Bun.Glob(`Timelines/*/${name}`).scan(DRAFT_DIR)) {
+    await Bun.write(join(DRAFT_DIR, rel), draftText);
+    synced++;
+  }
 }
 
 // ── 10. อ่านกลับยืนยัน — ห้ามเชื่อว่า "ไม่ error = สำเร็จ" ─────────────
@@ -329,11 +324,11 @@ const lastTrack = textTracks[textTracks.length - 1];
 const nLines = lastTrack?.segments?.length ?? 0;
 const after = statSync(DRAFT).size;
 
-if (nLines === 0) die("เขียนแล้วแต่อ่านกลับไม่เจอซับสักบรรทัด — กู้จาก draft_info.json.PRE_CC_BAK");
+if (nLines === 0) die(`เขียนแล้วแต่อ่านกลับไม่เจอซับสักบรรทัด — กู้จาก ${DRAFT_NAME}.PRE_CC_BAK`);
 if (after <= before) die(`ไฟล์ไม่โตขึ้น (${before} → ${after} ไบต์) — น่าจะเขียนไม่ติด`);
 
 console.log(`\n✅ เสร็จ — ใส่ซับ ${nLines} บรรทัด · sync Timelines ${synced} ไฟล์`);
-console.log(`   ไฟล์สำรอง: ${PROJ}/draft_info.json.PRE_CC_BAK`);
+console.log(`   ไฟล์สำรอง: ${PROJ}/${DRAFT_NAME}.PRE_CC_BAK`);
 if (!process.env.SARARIF_CC_CHAIN) {
   console.log(`\n👉 เปิด CapCut แล้วเปิดโปรเจกต์ "${PROJ}" ดูได้เลย`);
   console.log(`   ถ้าซับไม่ขึ้น: ปิด CapCut สนิทก่อนแล้วเปิดใหม่ (มันแคช draft ไว้)\n`);

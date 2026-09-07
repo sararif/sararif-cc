@@ -15,6 +15,14 @@ output: <out>/<clip>.words.json (words[{text,start,end,type}] เหมือน
 """
 import os, sys, json, subprocess, argparse, pathlib
 
+# Windows console/pipe ใช้ code page ท้องถิ่น — บังคับ UTF-8 กันพิมพ์ไทยพัง
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 HOME = pathlib.Path.home()
 
@@ -181,14 +189,14 @@ def main():
         res = (stt_sliced(tmp, model, a.threads, a.dtw or None, a.slice, out)
                if a.slice else stt(tmp, model, a.threads, a.dtw or None))
         (out / f"{p.stem}.words.json").write_text(
-            json.dumps(res, ensure_ascii=False, indent=2))
+            json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
         text = res["text"].strip()
         print(f"🎙️  {p.stem}  ({dur(p):.1f}s)  {text or '— เงียบ/ไม่มีคำ —'}", flush=True)
         lines.append(f"## {p.stem}  ({dur(p):.1f}s)\n{text or '_— เงียบ —_'}\n")
     if tmp.exists():
         tmp.unlink()
 
-    (out / "transcript.md").write_text("\n".join(lines))
+    (out / "transcript.md").write_text("\n".join(lines), encoding="utf-8")
     print(f"\n✅ เก็บที่ {out}/")
 
 

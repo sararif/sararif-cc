@@ -22,7 +22,10 @@ from_capcut.py — เอาซับที่ CapCut ถอดให้ฟร�
 """
 import json, sys, argparse, pathlib
 
-DRAFT_ROOT = pathlib.Path.home() / "Movies/CapCut/User Data/Projects/com.lveditor.draft"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from capcut_paths import draft_file, force_utf8_stdio
+
+force_utf8_stdio()
 
 # สระบน/ล่าง + วรรณยุกต์ไทย — ไม่กินเวลาพูด จึงไม่ควรถูกนับตอนเฉลี่ยเวลา
 COMBINING = set("ั") | {chr(c) for c in range(0x0E34, 0x0E3B)} | {chr(c) for c in range(0x0E47, 0x0E4F)}
@@ -110,7 +113,7 @@ def main():
 
     draft = pathlib.Path(a.proj)
     if not draft.is_file():
-        draft = DRAFT_ROOT / a.proj / "draft_info.json"
+        draft = draft_file(a.proj)   # Mac: draft_info.json · Windows: draft_content.json
     if not draft.exists():
         sys.exit(f"❌ ไม่พบโปรเจกต์: {draft}\n"
                  f"   เช็คชื่อโปรเจกต์อีกที — ต้องตรงกับที่ตั้งไว้ใน CapCut")

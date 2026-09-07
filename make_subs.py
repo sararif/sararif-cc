@@ -9,6 +9,14 @@ Usage:
   python3 make_subs.py stt_words.json out.ass [--offset SEC] [--maxchars 20] [--gap 0.4]
 """
 import json, sys, argparse, re, pathlib
+
+# Windows console/pipe ใช้ code page ท้องถิ่น — พิมพ์ไทยแล้วพัง ต้องบังคับ UTF-8 ก่อน
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 from pythainlp.tokenize import word_tokenize
 from pythainlp.util import dict_trie
 from pythainlp.corpus.common import thai_words
@@ -64,7 +72,7 @@ def fmt(t):
 
 def load_chars(stt):
     """คืน (full_text, [(start,end) ต่อ 1 ตัวอักษร])"""
-    d = json.load(open(stt))
+    d = json.load(open(stt, encoding="utf-8"))
     S, T = [], []
     STRIP = set("-–—_*")  # ตัด artifact จาก STT (false-start ฯลฯ)
     for w in d.get("words", []):
@@ -200,7 +208,7 @@ def main():
     if a.words_json:
         payload = [{"word": w, "start": round(st + a.offset, 3), "end": round(en + a.offset, 3)}
                    for w, st, en in words]
-        json.dump(payload, open(a.words_json, "w"), ensure_ascii=False, indent=1)
+        json.dump(payload, open(a.words_json, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         print(f"✅ {len(payload)} คำ (word-level) → {a.words_json}")
     if a.karaoke:
         kw = {k.strip().lower() for k in a.kw.split(",") if k.strip()}
@@ -213,7 +221,7 @@ def main():
             dur_end = nxt
             txt = (YEL + w + WHT) if w.lower() in kw else w
             out.append(f"Dialogue: 0,{fmt(st+a.offset)},{fmt(dur_end+a.offset)},Sub,,0,0,0,,{txt}")
-        open(a.out, "w").write("\n".join(out))
+        open(a.out, "w", encoding="utf-8").write("\n".join(out))
         hit = sum(1 for w, _, _ in words if w.lower() in kw)
         print(f"✅ karaoke {n} คำ ({hit} เหลือง) → {a.out}")
         return
@@ -221,7 +229,7 @@ def main():
     out = [HEADER.format(font=a.font)]
     for st, en, txt in lines:
         out.append(f"Dialogue: 0,{fmt(st+a.offset)},{fmt(en+a.offset)},Sub,,0,0,0,,{txt}")
-    open(a.out, "w").write("\n".join(out))
+    open(a.out, "w", encoding="utf-8").write("\n".join(out))
     print(f"✅ {len(lines)} บรรทัด (ตัดครบคำ) → {a.out}")
 
 if __name__ == "__main__":

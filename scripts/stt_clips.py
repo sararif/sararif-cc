@@ -14,13 +14,21 @@ default out: data/stt/<ชื่อโฟลเดอร์หรือ 'clips'>
 """
 import os, sys, json, subprocess, argparse, pathlib
 
+# Windows console/pipe ใช้ code page ท้องถิ่น — บังคับ UTF-8 กันพิมพ์ไทยพัง
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 def key():
     env = ROOT / ".env"
     if env.exists():
-        for l in env.read_text().splitlines():
+        for l in env.read_text(encoding="utf-8").splitlines():
             if l.startswith("ELEVENLABS_API_KEY="):
                 return l.split("=", 1)[1].strip().strip('"').strip("'")
     return os.environ.get("ELEVENLABS_API_KEY", "")
@@ -85,7 +93,7 @@ def main():
                         "-ac", "1", "-ar", "16000", str(tmp)], capture_output=True)
         res = stt(tmp)
         (out / f"{p.stem}.words.json").write_text(
-            json.dumps(res, ensure_ascii=False, indent=2))
+            json.dumps(res, ensure_ascii=False, indent=2), encoding="utf-8")
         text = (res.get("text") or "").strip()
         nwords = len([w for w in res.get("words", []) if w.get("type") == "word"])
         print(f"🎙️  {p.stem}  ({dur(p):.1f}s, {nwords} คำ)")
@@ -94,7 +102,7 @@ def main():
     if tmp.exists():
         tmp.unlink()
 
-    (out / "transcript.md").write_text("\n".join(lines))
+    (out / "transcript.md").write_text("\n".join(lines), encoding="utf-8")
     print(f"\n✅ เก็บที่ {out}/ (words.json ต่อคลิป + transcript.md)")
 
 

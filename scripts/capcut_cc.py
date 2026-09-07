@@ -18,6 +18,9 @@ import json, sys, argparse, uuid, pathlib
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from make_subs import load_chars, apply_fix, words_with_time, group  # reuse grouping ไทย
+from capcut_paths import draft_file, font_cache_dirs, force_utf8_stdio
+
+force_utf8_stdio()
 
 US = 1_000_000
 uid = lambda: str(uuid.uuid4()).upper()
@@ -29,10 +32,7 @@ uid = lambda: str(uuid.uuid4()).upper()
 #
 # ลำดับที่ลอง: ตัวที่ระบุมาเอง → มหานครบนเครื่องนี้ → ฟอนต์ไหนก็ได้ที่ CapCut โหลดไว้แล้ว → ไม่ใส่ฟอนต์
 MAHA_RES = "7545362452553174273"   # resource id ของ "มหานคร"
-CACHE_DIRS = [
-    pathlib.Path.home() / "Library/Containers/com.lemon.lvoverseas/Data/Movies/CapCut/User Data/Cache/effect",
-    pathlib.Path.home() / "Movies/CapCut/User Data/Cache/effect",
-]
+CACHE_DIRS = font_cache_dirs()   # ตาม OS — ดู capcut_paths.py
 
 
 def resolve_font(explicit=None):
@@ -150,7 +150,7 @@ def align_phrases(phrase_file, words):
     คืน [(start, end, text)]. เทียบแบบตัดช่องว่างทิ้ง เพราะ STT เว้นวรรคไม่ตรงกับบท
     """
     strip = lambda s: "".join(s.split())
-    phrases = [l.strip() for l in pathlib.Path(phrase_file).read_text().splitlines() if l.strip()]
+    phrases = [l.strip() for l in pathlib.Path(phrase_file).read_text(encoding="utf-8").splitlines() if l.strip()]
     wi, out = 0, []
     for ph in phrases:
         target, buf, st, en = strip(ph), "", None, None
@@ -198,9 +198,9 @@ def main():
     FONT = resolve_font(a.font)
     print(f"🔤 ฟอนต์: {FONT[0] or 'default ของ CapCut (ไม่พบไฟล์ฟอนต์ในเครื่อง)'}")
 
-    DRAFT = pathlib.Path.home() / f"Movies/CapCut/User Data/Projects/com.lveditor.draft/{a.proj}/draft_info.json"
-    draft = json.loads(DRAFT.read_text())
-    (DRAFT.parent / "draft_info.json.PRE_CC_BAK").write_text(json.dumps(draft))
+    DRAFT = draft_file(a.proj)   # Mac: draft_info.json · Windows: draft_content.json
+    draft = json.loads(DRAFT.read_text(encoding="utf-8"))
+    (DRAFT.parent / f"{DRAFT.name}.PRE_CC_BAK").write_text(json.dumps(draft), encoding="utf-8")
 
     # ลบแทร็กข้อความต้นทางทิ้งก่อน — ทำก่อนสร้าง template เพราะ index จะเลื่อนหลังลบ
     # (จำเป็นสำหรับ --engine capcut: เราอ่านซับจากแทร็กนั้นมาทำใหม่ ถ้าไม่ลบจะซ้อนกันบนจอ)
@@ -263,7 +263,7 @@ def main():
 
     draft["tracks"].append({"id": uid(), "type": "text", "segments": segs,
                             "flag": 0, "attribute": 0, "name": "", "is_default_name": True})
-    DRAFT.write_text(json.dumps(draft, ensure_ascii=False))
+    DRAFT.write_text(json.dumps(draft, ensure_ascii=False), encoding="utf-8")
     extra = f" · เน้นสี {hl_hits} จุด" if KEYWORDS else ""
     unit = "คำ" if a.mode == "karaoke" else "วลี"
     print(f"✅ inject cc {total} {unit} (สไตล์ {a.mode}, ขนาด {a.size}, y={a.y}){extra} — สำรอง .PRE_CC_BAK")

@@ -23,6 +23,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireCapCutClosed, draftPath, die } from "./lib/draft";
+import { DRAFT_NAMES, pythonCmd, PY_ENV } from "./lib/platform";
 import { loadFormat } from "./lib/format";
 import { Glob } from "bun";
 
@@ -54,19 +55,21 @@ const passArgv = argv.filter((a, i) => a !== PROJ && a !== "--style" && argv[i -
 
 const py = join(HERE, "scripts", "capcut_hook.py");
 const proc = Bun.spawnSync([
-  "python3", py, PROJ, ...passArgv,
+  ...pythonCmd(), py, PROJ, ...passArgv,
   ...fallback("y", FMT.hook.y), ...fallback("size", FMT.hook.size),
   ...fallback("dur", FMT.hook.seconds), ...fallback("color", FMT.highlightColor),
-], { stdout: "inherit", stderr: "inherit" });
+], { stdout: "inherit", stderr: "inherit", env: PY_ENV });
 if (proc.exitCode !== 0) die("ใส่ hook ไม่สำเร็จ");
 
 // CapCut อ่านจากสำเนาใน Timelines/ — ไม่ก๊อปไปด้วย งานจะหายตอนเปิดโปรแกรม
 const dir = dirname(draftPath(PROJ));
 const body = readFileSync(draftPath(PROJ), "utf8");
 let n = 0;
-for await (const rel of new Glob("Timelines/*/draft_info.json").scan(dir)) {
-  await Bun.write(join(dir, rel), body);
-  n++;
+for (const name of DRAFT_NAMES) {
+  for await (const rel of new Glob(`Timelines/*/${name}`).scan(dir)) {
+    await Bun.write(join(dir, rel), body);
+    n++;
+  }
 }
 console.log(`   sync Timelines ${n} ไฟล์`);
 if (!process.env.SARARIF_CC_CHAIN) {
