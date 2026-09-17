@@ -29,6 +29,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { draftPath, requireCapCutClosed, die } from "./lib/draft";
+import { printUpdateNotice } from "./lib/update";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -106,3 +107,5 @@ console.log(`✅ เสร็จครบทุกขั้น — เปิด 
 console.log(`   ถ้าซับไม่ขึ้น: ปิด CapCut ให้สนิทก่อนแล้วเปิดใหม่ (มันแคช draft ไว้)`);
 console.log(`   ไฟล์เดิมสำรองไว้ครบทุกขั้น (.PRE_CUT_BAK / .PRE_CC_BAK / .PRE_HOOK_BAK)`);
 console.log(`${"═".repeat(52)}\n`);
+
+await printUpdateNotice();

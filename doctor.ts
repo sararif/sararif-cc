@@ -17,6 +17,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Glob } from "bun";
 import { DRAFT_ROOT, listProjects, findCapCutApp, fontCacheDirs, pythonCmd, PY_ENV, IS_WIN } from "./lib/platform";
+import { localVersion, printUpdateNotice } from "./lib/update";
 
 const HOME = homedir();
 
@@ -301,4 +302,8 @@ if (!existsSync(join(HOME, ".sararif-cc/format.json"))) {
 } else {
   console.log("   ดูว่าปรับอะไรได้บ้าง:  bun setup.ts --show\n");
 }
+
+// เวอร์ชันที่ใช้อยู่ + บอกถ้ามีของใหม่ — doctor คือที่แรกที่คนเปิดเวลาสงสัยว่าของตัวเองเก่าไหม
+console.log(`sararif-cc เวอร์ชัน ${localVersion()}`);
+await printUpdateNotice();
 process.exit(0);

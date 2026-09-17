@@ -41,6 +41,7 @@ import { homedir } from "node:os";
 import { join, basename, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadFormat, STYLES, canvasRatio } from "./lib/format";
+import { printUpdateNotice } from "./lib/update";
 import { DRAFT_ROOT, DRAFT_NAMES, draftFileName, listProjects, capcutState, askCapCutToQuit, QUIT_HINT, pythonCmd, PY_ENV } from "./lib/platform";
 
 const HOME = homedir();
@@ -333,3 +334,6 @@ if (!process.env.SARARIF_CC_CHAIN) {
   console.log(`\n👉 เปิด CapCut แล้วเปิดโปรเจกต์ "${PROJ}" ดูได้เลย`);
   console.log(`   ถ้าซับไม่ขึ้น: ปิด CapCut สนิทก่อนแล้วเปิดใหม่ (มันแคช draft ไว้)\n`);
 }
+
+// แจ้งว่ามีเวอร์ชันใหม่ — ท้ายสุดเสมอ และข้ามตอนถูก go.ts เรียกต่อ จะได้ไม่ขึ้นซ้ำ
+if (!process.env.SARARIF_CC_CHAIN) await printUpdateNotice();
